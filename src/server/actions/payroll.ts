@@ -241,6 +241,7 @@ export async function getPayrollWorkspace(selectedPeriodId?: string) {
           employeeId: payrollResults.employeeId,
           employeeName: payrollEmployeeSnapshots.employeeNameSnapshot,
           employeeCode: payrollEmployeeSnapshots.employeeCodeSnapshot,
+          branchName: payrollEmployeeSnapshots.branchSnapshotName,
           divisionName: payrollEmployeeSnapshots.divisionSnapshotName,
           positionName: payrollEmployeeSnapshots.positionSnapshotName,
           gradeName: payrollEmployeeSnapshots.gradeSnapshotName,

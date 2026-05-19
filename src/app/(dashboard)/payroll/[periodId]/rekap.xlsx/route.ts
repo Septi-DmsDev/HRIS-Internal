@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { generatePayrollPreview, getPayrollWorkspace } from "@/server/actions/payroll";
-import { normalizeEmployeeGroup } from "@/lib/employee-groups";
+import { normalizeEmployeeGroup, resolveEmployeeGroupLabel } from "@/lib/employee-groups";
 
 export const runtime = "nodejs";
 
@@ -50,8 +50,11 @@ export async function GET(_: Request, context: RouteContext) {
     id: row.employeeId,
     uid: row.employeeCode ?? "-",
     name: row.employeeName ?? "-",
+    branchName: row.branchName ?? "-",
     divisionName: row.divisionName ?? "-",
     positionName: (row.positionName ?? "-").toUpperCase(),
+    gradeName: row.gradeName ?? "-",
+    employeeGroup: row.employeeGroup ?? "MITRA_KERJA",
     normalizedGroup: normalizeEmployeeGroup(row.employeeGroup ?? "MITRA_KERJA"),
     thp: Number(row.takeHomePay),
   }));
@@ -124,9 +127,36 @@ export async function GET(_: Request, context: RouteContext) {
   const unassigned = normalizedRows.filter((row) => !assignedEmployeeIds.has(row.id));
   appendSheet(workbook, "Unassigned", unassigned);
 
+  // ── Summary sheet ──────────────────────────────────────────────────────────
+
+  function buildBreakdown(
+    label: string,
+    keyFn: (row: typeof normalizedRows[number]) => string
+  ): Array<Array<string | number>> {
+    const map = new Map<string, { count: number; thp: number }>();
+    for (const row of normalizedRows) {
+      const key = keyFn(row) || "-";
+      const entry = map.get(key) ?? { count: 0, thp: 0 };
+      entry.count++;
+      entry.thp += row.thp;
+      map.set(key, entry);
+    }
+    const sorted = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const totalCount = sorted.reduce((sum, [, v]) => sum + v.count, 0);
+    const totalThp = sorted.reduce((sum, [, v]) => sum + v.thp, 0);
+    return [
+      [label, "jumlah_karyawan", "total_thp"],
+      ...sorted.map(([key, v]) => [key, v.count, v.thp] as [string, number, number]),
+      [],
+      ["TOTAL", totalCount, totalThp],
+    ];
+  }
+
   const grandTotalThp = tabSummaries.reduce((sum, row) => sum + row.totalThp, 0);
   const grandTotalEmployees = tabSummaries.reduce((sum, row) => sum + row.employeeCount, 0);
-  const summaryRows: Array<Array<string | number>> = [
+
+  // Tab summary (col A)
+  const tabSummaryRows: Array<Array<string | number>> = [
     ["periode", periodCode],
     [],
     ["tab", "jumlah_karyawan", "total_thp"],
@@ -134,7 +164,25 @@ export async function GET(_: Request, context: RouteContext) {
     [],
     ["GRAND TOTAL", grandTotalEmployees, grandTotalThp],
   ];
-  const summaryWorksheet = XLSX.utils.aoa_to_sheet(summaryRows);
+
+  const breakdowns = [
+    buildBreakdown("cabang", (r) => r.branchName),
+    buildBreakdown("divisi", (r) => r.divisionName),
+    buildBreakdown("jabatan", (r) => r.positionName),
+    buildBreakdown("grade", (r) => r.gradeName),
+    buildBreakdown("kelompok_karyawan", (r) =>
+      resolveEmployeeGroupLabel(r.employeeGroup as Parameters<typeof resolveEmployeeGroupLabel>[0])
+    ),
+  ];
+
+  const summaryWorksheet = XLSX.utils.aoa_to_sheet(tabSummaryRows);
+
+  // Tempatkan setiap breakdown 4 kolom ke kanan (kolom E, I, M, Q, U)
+  const GAP = 4;
+  breakdowns.forEach((table, i) => {
+    XLSX.utils.sheet_add_aoa(summaryWorksheet, table, { origin: { r: 0, c: (i + 1) * GAP } });
+  });
+
   XLSX.utils.book_append_sheet(workbook, summaryWorksheet, "Summary");
   workbook.SheetNames = ["Summary", ...workbook.SheetNames.filter((name) => name !== "Summary")];
 
