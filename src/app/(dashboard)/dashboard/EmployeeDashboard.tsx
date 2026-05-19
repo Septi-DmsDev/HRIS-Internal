@@ -1,6 +1,7 @@
 import { getMyDashboard } from "@/server/actions/me";
 import { db } from "@/lib/db";
 import { employeeAlerts, leaveQuotas } from "@/lib/db/schema/hr";
+import { buildPayslipBreakdown } from "@/server/payroll-engine/build-payslip-breakdown";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import {
@@ -10,12 +11,12 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  CreditCard,
   Settings,
   Ticket,
   TrendingUp,
   XCircle,
 } from "lucide-react";
+import TakeHomePayCard from "./TakeHomePayCard";
 
 function formatCurrency(amount: string | number | null | undefined): string {
   if (amount == null) return "—";
@@ -172,6 +173,37 @@ export default async function EmployeeDashboard() {
     ? formatCurrency(latestPayroll.takeHomePay)
     : "—";
 
+  const breakdownMeta = (latestPayroll?.breakdown ?? {}) as {
+    unpaidLeaveDeductionAmount?: number;
+    incidentDeductionAmount?: number;
+    manualAdjustmentAmount?: number;
+  };
+
+  const thpBreakdown =
+    latestPayroll && employee
+      ? buildPayslipBreakdown({
+          employeeGroup: employee.employeeGroup,
+          baseSalaryPaid: Number(latestPayroll.baseSalaryPaid),
+          gradeAllowancePaid: Number(latestPayroll.gradeAllowancePaid),
+          tenureAllowancePaid: Number(latestPayroll.tenureAllowancePaid),
+          dailyAllowancePaid: Number(latestPayroll.dailyAllowancePaid),
+          overtimeAmount: Number(latestPayroll.overtimeAmount),
+          bonusFulltimeAmount: Number(latestPayroll.bonusFulltimeAmount),
+          bonusDisciplineAmount: Number(latestPayroll.bonusDisciplineAmount),
+          bonusKinerjaAmount: Number(latestPayroll.bonusKinerjaAmount),
+          bonusPrestasiAmount: Number(latestPayroll.bonusPrestasiAmount),
+          bonusTeamAmount: Number(latestPayroll.bonusTeamAmount),
+          incidentDeductionAmount: Number(
+            breakdownMeta.incidentDeductionAmount ?? Number(latestPayroll.incidentDeductionAmount)
+          ),
+          unpaidLeaveDeductionAmount: Number(breakdownMeta.unpaidLeaveDeductionAmount ?? 0),
+          manualAdjustmentAmount: Number(
+            breakdownMeta.manualAdjustmentAmount ?? Number(latestPayroll.manualAdjustmentAmount)
+          ),
+          takeHomePay: Number(latestPayroll.takeHomePay),
+        })
+      : null;
+
   const activeIncidents = incidentSummary?.activeCount ?? 0;
 
   return (
@@ -195,11 +227,10 @@ export default async function EmployeeDashboard() {
             sub={approvedPointsSub}
             icon={BarChart3}
           />
-          <StatCard
-            label="Take Home Pay"
+          <TakeHomePayCard
             value={takeHomePay}
             sub={latestPayroll ? latestPayroll.periodCode : "Belum ada data payroll"}
-            icon={CreditCard}
+            breakdown={thpBreakdown}
           />
           <StatCard
             label="Incident Aktif"

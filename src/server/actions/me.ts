@@ -107,6 +107,19 @@ type MyPayrollSummary = {
   takeHomePay: string;
   performancePercent: string;
   calculatedAt: Date;
+  baseSalaryPaid: string;
+  gradeAllowancePaid: string;
+  tenureAllowancePaid: string;
+  dailyAllowancePaid: string;
+  overtimeAmount: string;
+  bonusFulltimeAmount: string;
+  bonusDisciplineAmount: string;
+  bonusKinerjaAmount: string;
+  bonusPrestasiAmount: string;
+  bonusTeamAmount: string;
+  incidentDeductionAmount: string;
+  manualAdjustmentAmount: string;
+  breakdown: Record<string, unknown> | null;
 } | null;
 
 type MyHistoryRow = {
@@ -493,6 +506,19 @@ async function getLatestPayroll(employeeId: string): Promise<MyPayrollSummary> {
       takeHomePay: payrollResults.takeHomePay,
       performancePercent: payrollResults.performancePercent,
       calculatedAt: payrollResults.calculatedAt,
+      baseSalaryPaid: payrollResults.baseSalaryPaid,
+      gradeAllowancePaid: payrollResults.gradeAllowancePaid,
+      tenureAllowancePaid: payrollResults.tenureAllowancePaid,
+      dailyAllowancePaid: payrollResults.dailyAllowancePaid,
+      overtimeAmount: payrollResults.overtimeAmount,
+      bonusFulltimeAmount: payrollResults.bonusFulltimeAmount,
+      bonusDisciplineAmount: payrollResults.bonusDisciplineAmount,
+      bonusKinerjaAmount: payrollResults.bonusKinerjaAmount,
+      bonusPrestasiAmount: payrollResults.bonusPrestasiAmount,
+      bonusTeamAmount: payrollResults.bonusTeamAmount,
+      incidentDeductionAmount: payrollResults.incidentDeductionAmount,
+      manualAdjustmentAmount: payrollResults.manualAdjustmentAmount,
+      breakdown: payrollResults.breakdown,
     })
     .from(payrollResults)
     .innerJoin(payrollPeriods, eq(payrollResults.periodId, payrollPeriods.id))

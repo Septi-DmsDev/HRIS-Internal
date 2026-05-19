@@ -82,7 +82,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Overtime",
     href: "/overtime",
     icon: Clock3,
-    roles: ["SUPER_ADMIN", "HRD", "SPV", "TEAMWORK"],
+    roles: ["SUPER_ADMIN", "HRD", "SPV", "TEAMWORK", "MANAGERIAL"],
     group: "main",
   },
   {

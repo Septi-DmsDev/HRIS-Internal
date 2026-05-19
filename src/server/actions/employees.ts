@@ -512,7 +512,9 @@ export async function getEmployeesForExport() {
   const rows = await db
     .select({
       id: employees.id,
+      employeeCode: employees.employeeCode,
       branchName: branches.name,
+      divisionName: divisions.name,
       fullName: employees.fullName,
       birthPlace: employees.birthPlace,
       birthDate: employees.birthDate,
@@ -527,15 +529,18 @@ export async function getEmployeesForExport() {
     })
     .from(employees)
     .leftJoin(branches, eq(employees.branchId, branches.id))
+    .leftJoin(divisions, eq(employees.divisionId, divisions.id))
     .leftJoin(userRoles, eq(userRoles.employeeId, employees.id))
-    .orderBy(asc(employees.fullName));
+    .orderBy(asc(divisions.name), asc(employees.fullName));
 
   const admin = createAdminClient();
   const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const emailMap = new Map((data?.users ?? []).map((user) => [user.id, user.email ?? ""]));
 
   return rows.map((row) => ({
+    employeeCode: row.employeeCode ?? "-",
     cabang: row.branchName ?? "-",
+    divisi: row.divisionName ?? "-",
     nama: row.fullName ?? "-",
     tempatLahir: row.birthPlace ?? "-",
     tglLahir: row.birthDate,

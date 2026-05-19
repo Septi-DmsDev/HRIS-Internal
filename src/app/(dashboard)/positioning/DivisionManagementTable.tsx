@@ -189,6 +189,7 @@ export default function DivisionManagementTable({ data, options }: { data: Divis
         columns={columns}
         globalSearch
         searchPlaceholder="Cari karyawan, cabang, divisi, jabatan, grade, atau kelompok..."
+        stateKey="positioning-employee-table"
       />
     </div>
   );

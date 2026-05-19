@@ -9,6 +9,7 @@ import {
   flexRender,
   type ColumnFiltersState,
   type ColumnDef,
+  type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
 import type { ReactNode } from "react";
@@ -23,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type DataTableProps<T extends Record<string, unknown>> = {
   data: T[];
@@ -32,6 +33,7 @@ type DataTableProps<T extends Record<string, unknown>> = {
   searchPlaceholder?: string;
   globalSearch?: boolean;
   toolbarSlot?: ReactNode;
+  stateKey?: string;
 };
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -41,10 +43,45 @@ export function DataTable<T extends Record<string, unknown>>({
   searchPlaceholder = "Cari...",
   globalSearch = false,
   toolbarSlot,
+  stateKey,
 }: DataTableProps<T>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 });
+
+  useEffect(() => {
+    if (!stateKey) return;
+    try {
+      const raw = sessionStorage.getItem(stateKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        columnFilters?: ColumnFiltersState;
+        globalFilter?: string;
+        sorting?: SortingState;
+        pagination?: PaginationState;
+      };
+      if (parsed.columnFilters) setColumnFilters(parsed.columnFilters);
+      if (typeof parsed.globalFilter === "string") setGlobalFilter(parsed.globalFilter);
+      if (parsed.sorting) setSorting(parsed.sorting);
+      if (parsed.pagination) setPagination(parsed.pagination);
+    } catch {
+      // Ignore invalid persisted state.
+    }
+  }, [stateKey]);
+
+  useEffect(() => {
+    if (!stateKey) return;
+    sessionStorage.setItem(
+      stateKey,
+      JSON.stringify({
+        columnFilters,
+        globalFilter,
+        sorting,
+        pagination,
+      })
+    );
+  }, [stateKey, columnFilters, globalFilter, sorting, pagination]);
 
   const searchValue = globalSearch
     ? globalFilter
@@ -72,11 +109,11 @@ export function DataTable<T extends Record<string, unknown>>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    state: { columnFilters, globalFilter, sorting },
+    state: { columnFilters, globalFilter, sorting, pagination },
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
-    initialState: { pagination: { pageSize: 20 } },
+    onPaginationChange: setPagination,
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
