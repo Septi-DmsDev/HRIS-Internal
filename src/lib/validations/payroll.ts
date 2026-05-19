@@ -56,6 +56,15 @@ export const deletePayrollAdjustmentSchema = z.object({
   source: z.enum(["PERIOD", "RECURRING"]),
 });
 
+export const updatePayrollAdjustmentSchema = z.object({
+  periodId: z.uuid(),
+  adjustmentId: z.uuid(),
+  source: z.enum(["PERIOD", "RECURRING"]),
+  amount: z.coerce.number().positive(),
+  description: z.string().trim().max(300).optional(),
+  tenorMonthsRemaining: z.coerce.number().int().min(1).max(120).optional(),
+});
+
 export const managerialKpiSummarySchema = z.object({
   periodId: z.uuid(),
   employeeId: z.uuid(),
@@ -104,6 +113,7 @@ export type CreatePayrollPeriodInput = z.infer<typeof createPayrollPeriodSchema>
 export type PayrollPeriodActionInput = z.infer<typeof payrollPeriodActionSchema>;
 export type PayrollAdjustmentInput = z.infer<typeof payrollAdjustmentSchema>;
 export type DeletePayrollAdjustmentInput = z.infer<typeof deletePayrollAdjustmentSchema>;
+export type UpdatePayrollAdjustmentInput = z.infer<typeof updatePayrollAdjustmentSchema>;
 export type AdjustmentCategoryInput = AdjustmentCategory;
 export type ManagerialKpiSummaryInput = z.infer<typeof managerialKpiSummarySchema>;
 export type SalaryConfigInput = z.infer<typeof salaryConfigSchema>;

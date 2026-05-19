@@ -36,6 +36,7 @@ import {
 import {
   createPayrollPeriodSchema,
   deletePayrollAdjustmentSchema,
+  updatePayrollAdjustmentSchema,
   managerialKpiSummarySchema,
   payrollAdjustmentSchema,
   gradeCompensationConfigSchema,
@@ -53,7 +54,7 @@ import { resolveSpPerformancePenalty } from "@/server/payroll-engine/resolve-sp-
 import { resolveTenureAllowanceAmount } from "@/server/payroll-engine/resolve-tenure-allowance";
 import { countTargetDaysForPeriod } from "@/server/point-engine/count-target-days-for-period";
 import { isKpiEmployeeGroup, isPointBasedEmployeeGroup } from "@/lib/employee-groups";
-import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { PayrollPeriodStatus, UserRole } from "@/types";
 import {
@@ -1173,6 +1174,134 @@ export async function addPayrollAdjustment(input: unknown) {
       payload: { category, adjustmentType, amount, recurring: isRecurring },
     });
   });
+
+  revalidatePath("/payroll");
+  revalidatePath("/finance");
+  return { success: true };
+}
+
+export async function updatePayrollAdjustment(input: unknown) {
+  const access = await assertPayrollWriteAccess();
+  if ("error" in access) return access;
+
+  const parsed = updatePayrollAdjustmentSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Data update tidak valid." };
+  }
+
+  const user = await getUser();
+  if (!user) return { error: "Sesi tidak valid." };
+
+  const { periodId, adjustmentId, source, amount, description, tenorMonthsRemaining } = parsed.data;
+
+  const [period] = await db
+    .select({ id: payrollPeriods.id, status: payrollPeriods.status })
+    .from(payrollPeriods)
+    .where(eq(payrollPeriods.id, periodId))
+    .limit(1);
+
+  if (!period) return { error: "Periode payroll tidak ditemukan." };
+  if (period.status === "PAID" || period.status === "LOCKED") {
+    return { error: "Adjustment tidak bisa diubah pada periode yang sudah paid/locked." };
+  }
+
+  if (source === "PERIOD") {
+    const [existing] = await db
+      .select({
+        id: payrollAdjustments.id,
+        reason: payrollAdjustments.reason,
+        employeeId: payrollAdjustments.employeeId,
+      })
+      .from(payrollAdjustments)
+      .where(eq(payrollAdjustments.id, adjustmentId))
+      .limit(1);
+
+    if (!existing) return { error: "Adjustment tidak ditemukan." };
+
+    const category = (existing.reason.split("::")[0] ?? "") as AdjustmentCategory;
+
+    if (category === "KASBON") {
+      const otherKasbon = await db
+        .select({ amount: payrollAdjustments.amount })
+        .from(payrollAdjustments)
+        .where(
+          and(
+            eq(payrollAdjustments.periodId, periodId),
+            eq(payrollAdjustments.employeeId, existing.employeeId),
+            like(payrollAdjustments.reason, "KASBON%"),
+            ne(payrollAdjustments.id, adjustmentId)
+          )
+        );
+      const existingTotal = otherKasbon.reduce((acc, row) => acc + Number(row.amount), 0);
+      const remaining = 300000 - existingTotal;
+      if (amount > remaining) {
+        return { error: `Total kasbon melebihi batas Rp 300.000/periode. Sisa: Rp ${remaining.toLocaleString("id-ID")}.` };
+      }
+    }
+
+    const newReason = encodeAdjustmentReason(category, description, tenorMonthsRemaining);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(payrollAdjustments)
+        .set({ amount: amount.toFixed(2), reason: newReason })
+        .where(eq(payrollAdjustments.id, adjustmentId));
+
+      await tx.insert(payrollAuditLogs).values({
+        periodId,
+        employeeId: existing.employeeId,
+        action: "ADD_ADJUSTMENT",
+        actorUserId: user.id,
+        actorRole: access.role,
+        notes: newReason,
+        payload: { event: "UPDATE_ADJUSTMENT", adjustmentId, category, amount, source },
+      });
+    });
+  } else {
+    const [existing] = await db
+      .select({
+        id: recurringPayrollAdjustments.id,
+        reason: recurringPayrollAdjustments.reason,
+        employeeId: recurringPayrollAdjustments.employeeId,
+        category: recurringPayrollAdjustments.category,
+      })
+      .from(recurringPayrollAdjustments)
+      .where(
+        and(
+          eq(recurringPayrollAdjustments.id, adjustmentId),
+          eq(recurringPayrollAdjustments.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (!existing) return { error: "Adjustment recurring tidak ditemukan." };
+
+    const category = existing.category as AdjustmentCategory;
+    const newReason = encodeAdjustmentReason(category, description, tenorMonthsRemaining);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(recurringPayrollAdjustments)
+        .set({
+          amount: amount.toFixed(2),
+          reason: newReason,
+          appliedByUserId: user.id,
+          appliedByRole: access.role,
+          updatedAt: new Date(),
+        })
+        .where(eq(recurringPayrollAdjustments.id, adjustmentId));
+
+      await tx.insert(payrollAuditLogs).values({
+        periodId,
+        employeeId: existing.employeeId,
+        action: "ADD_ADJUSTMENT",
+        actorUserId: user.id,
+        actorRole: access.role,
+        notes: newReason,
+        payload: { event: "UPDATE_ADJUSTMENT", adjustmentId, category, amount, source, recurring: true },
+      });
+    });
+  }
 
   revalidatePath("/payroll");
   revalidatePath("/finance");

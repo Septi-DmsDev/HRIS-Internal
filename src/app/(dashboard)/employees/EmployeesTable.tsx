@@ -626,4 +626,3 @@ export default function EmployeesTable({ data, options }: { data: EmployeeRow[];
 </div>
   );
 }
-

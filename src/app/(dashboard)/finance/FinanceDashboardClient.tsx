@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Search, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Search, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   addPayrollAdjustment,
   deletePayrollAdjustment,
+  updatePayrollAdjustment,
   syncSalaryConfigWithEmployeeGroupMaster,
   upsertEmployeeSalaryConfig,
   upsertGradeCompensationConfig,
@@ -69,6 +70,12 @@ type GradeDraft = {
 type AdjustmentDraft = {
   employeeId: string;
   category: AdjustmentCategory;
+  amount: string;
+  description: string;
+  tenorMonthsRemaining: string;
+};
+
+type AdjustmentEditDraft = {
   amount: string;
   description: string;
   tenorMonthsRemaining: string;
@@ -165,6 +172,10 @@ export default function FinanceDashboardClient({
     description: "",
     tenorMonthsRemaining: "",
   });
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editRow, setEditRow] = useState<PayrollAdjustmentRow | null>(null);
+  const [editDraft, setEditDraft] = useState<AdjustmentEditDraft>({ amount: "", description: "", tenorMonthsRemaining: "" });
 
   const runAction = useCallback(async (action: () => Promise<{ error?: string; success?: boolean }>) => {
     setPending(true);
@@ -327,6 +338,29 @@ export default function FinanceDashboardClient({
     return eligibleRows[0]?.employeeId ?? "";
   }
 
+  function decodeReasonToEditDraft(reason: string): AdjustmentEditDraft {
+    const parts = reason.split("::");
+    const category = parts[0] ?? "";
+    if (category === "CICILAN") {
+      return {
+        amount: "",
+        tenorMonthsRemaining: parts[1] ?? "",
+        description: parts.slice(2).join("::"),
+      };
+    }
+    return { amount: "", tenorMonthsRemaining: "", description: parts.slice(1).join("::") };
+  }
+
+  const handleOpenEdit = useCallback((row: PayrollAdjustmentRow) => {
+    const draft = decodeReasonToEditDraft(row.reason);
+    draft.amount = String(row.amount);
+    setEditRow(row);
+    setEditDraft(draft);
+    setError(null);
+    setSuccess(null);
+    setEditOpen(true);
+  }, []);
+
   const handleDeleteAdjustment = useCallback(async (row: PayrollAdjustmentRow) => {
     if (!activePeriodId) return;
     const ok = window.confirm(
@@ -390,22 +424,36 @@ export default function FinanceDashboardClient({
         id: "action",
         cell: ({ row }) =>
           canManage ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 px-0 text-rose-600 hover:text-rose-700"
-              disabled={pending || !activePeriodId}
-              title="Hapus adjustment"
-              aria-label="Hapus adjustment"
-              onClick={() => void handleDeleteAdjustment(row.original)}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 px-0 text-slate-600 hover:text-slate-800"
+                disabled={pending || !activePeriodId}
+                title="Edit adjustment"
+                aria-label="Edit adjustment"
+                onClick={() => handleOpenEdit(row.original)}
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 px-0 text-rose-600 hover:text-rose-700"
+                disabled={pending || !activePeriodId}
+                title="Hapus adjustment"
+                aria-label="Hapus adjustment"
+                onClick={() => void handleDeleteAdjustment(row.original)}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
           ) : null,
       },
     ],
-    [activePeriodId, canManage, handleDeleteAdjustment, pending]
+    [activePeriodId, canManage, handleDeleteAdjustment, handleOpenEdit, pending]
   );
 
   const activePeriod = periods.find((p) => p.id === activePeriodId);
@@ -675,6 +723,97 @@ export default function FinanceDashboardClient({
                   })
                 );
                 if (ok) setGradeOpen(false);
+              }}
+            >
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Edit Adjustment */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Adjustment</DialogTitle>
+          </DialogHeader>
+          {editRow ? (
+            <div className="space-y-3">
+              <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 space-y-0.5">
+                <p className="text-sm font-medium text-slate-900">{editRow.employeeName}</p>
+                <p className="text-xs text-slate-500">
+                  {categoryLabel(editRow.category, editRow.adjustmentType)}
+                  {editRow.source === "RECURRING" ? " · Berulang" : ""}
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">
+                  Nominal (Rp){editRow.category === "KASBON" ? " — maks 300.000" : ""}
+                </label>
+                <Input
+                  type="number"
+                  placeholder="Nominal"
+                  min={1}
+                  max={editRow.category === "KASBON" ? 300000 : undefined}
+                  value={editDraft.amount}
+                  onChange={(e) => setEditDraft((v) => ({ ...v, amount: e.target.value }))}
+                />
+              </div>
+
+              {editRow.category === "CICILAN" && (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">Sisa Tenor (bulan)</label>
+                  <Input
+                    type="number"
+                    placeholder="Contoh: 12"
+                    min={1}
+                    max={120}
+                    value={editDraft.tenorMonthsRemaining}
+                    onChange={(e) => setEditDraft((v) => ({ ...v, tenorMonthsRemaining: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              {editRow.category !== "BPJS" && editRow.category !== "TRANSPORT" && (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-500">
+                    Keterangan{editRow.category === "MANUAL_ADDITION" ? " (wajib)" : " (opsional)"}
+                  </label>
+                  <Input
+                    placeholder={
+                      editRow.category === "MANUAL_ADDITION"
+                        ? "Alasan penambahan"
+                        : editRow.category === "CICILAN"
+                        ? "Nama barang / keterangan pinjaman"
+                        : "Keterangan"
+                    }
+                    value={editDraft.description}
+                    onChange={(e) => setEditDraft((v) => ({ ...v, description: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={pending}>
+              Batal
+            </Button>
+            <Button
+              disabled={pending || !activePeriodId || !editRow}
+              onClick={async () => {
+                if (!activePeriodId || !editRow) return;
+                const ok = await runAction(() =>
+                  updatePayrollAdjustment({
+                    periodId: activePeriodId,
+                    adjustmentId: editRow.id,
+                    source: editRow.source,
+                    amount: editDraft.amount,
+                    description: editDraft.description || undefined,
+                    tenorMonthsRemaining: editDraft.tenorMonthsRemaining || undefined,
+                  })
+                );
+                if (ok) setEditOpen(false);
               }}
             >
               Simpan
