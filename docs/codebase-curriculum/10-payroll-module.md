@@ -63,10 +63,12 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 | `src/app/(dashboard)/payroll/page.tsx` | workspace payroll | user payroll | merakit data untuk client |
 | `src/app/(dashboard)/payroll/PayrollClient.tsx` | UI period, results, adjustment, KPI, salary config | HRD/Finance/Admin | client besar |
 | `src/app/(dashboard)/payroll/[periodId]/[employeeId]/page.tsx` | detail payroll per karyawan | payroll reader | breakdown lengkap |
-| `src/app/(dashboard)/payroll/[periodId]/export.xlsx/route.ts` | export Excel payroll | browser | node runtime |
-| `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | export PDF payslip | browser | node runtime |
+| `src/app/(dashboard)/payroll/[periodId]/export.xlsx/route.ts` | export Excel payroll per karyawan | browser | node runtime |
+| `src/app/(dashboard)/payroll/[periodId]/rekap.xlsx/route.ts` | export rekap Excel per kategori dengan breakdown Summary | browser | node runtime |
+| `src/app/(dashboard)/payroll/[periodId]/slips.pdf/route.ts` | export bulk payslip PDF | browser | node runtime |
+| `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | export PDF payslip per karyawan | browser | node runtime |
 | `src/app/(dashboard)/finance/page.tsx` | finance dashboard | HRD/Finance/Viewer | membaca workspace payroll |
-| `src/app/(dashboard)/finance/FinanceDashboardClient.tsx` | summary finance per periode | HRD/Finance/Viewer | read-only |
+| `src/app/(dashboard)/finance/FinanceDashboardClient.tsx` | summary finance per periode — gaji pokok, grade, adjustment (tambah/edit/hapus) | HRD/Finance/Viewer | client component |
 
 ## 3. Alur Kerja Modul
 
@@ -135,13 +137,14 @@ orchestrator seluruh proses payroll.
 
 Export utama:
 
-- `getPayrollWorkspace()`
+- `getPayrollWorkspace()` — hasil include `branchName` dari `branchSnapshotName`
 - `getPayrollEmployeeDetail()`
 - `upsertEmployeeSalaryConfig()`
 - `upsertManagerialKpiSummary()`
 - `createPayrollPeriod()`
-- `addPayrollAdjustment()`
-- `deletePayrollAdjustment()`
+- `addPayrollAdjustment()` — tambah adjustment, enforce business rules per kategori
+- `updatePayrollAdjustment()` — edit nominal/keterangan adjustment existing; enforce batas kasbon
+- `deletePayrollAdjustment()` — hapus adjustment (RECURRING: soft-deactivate, PERIOD: hard-delete)
 - `generatePayrollPreview()`
 - `finalizePayroll()`
 - `markPayrollPaid()`
@@ -175,6 +178,8 @@ Logika penting:
   - bonus disiplin tidak dipicu oleh input persentase/manual KPI; eligibility-nya mengikuti absensi dan incident telat,
   - menyatukan adjustment periode dan recurring adjustment aktif.
 - `BPJS` dan `TRANSPORT` disimpan di `recurring_payroll_adjustments`; adjustment lain tetap period-specific di `payroll_adjustments`.
+- `updatePayrollAdjustment()` hanya mengubah `amount` dan `reason` (keterangan/tenor); kategori dan karyawan tidak bisa diubah melalui action ini untuk menjaga integritas business rules.
+- rekap.xlsx sheet **Summary** berisi: kolom A–C = rekap per tab (KABAG/SPV/MANAGERIAL/divisi), kolom E–G = per cabang, I–K = per divisi, M–O = per jabatan, Q–S = per grade, U–W = per kelompok karyawan.
 - page `/payroll` memanggil auto-preview untuk periode yang belum `FINALIZED/PAID/LOCKED`, sehingga tabel payroll langsung terisi tanpa tombol manual `Generate Preview`.
 - `finalizePayroll()`:
   - mengunci result dan monthly performance,

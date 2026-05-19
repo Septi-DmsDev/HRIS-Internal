@@ -1,9 +1,9 @@
 # HRD Dashboard - Handover Document
 
-**Tanggal update:** 2026-05-07  
+**Tanggal update:** 2026-05-19  
 **Branch aktif:** `main`  
-**Remote:** `https://github.com/Septi-DmsDev/hris-internal.git`  
-**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-04
+**Remote:** `https://github.com/Septi-DmsDev/HRIS-Internal.git`  
+**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-19
 
 ---
 
@@ -53,18 +53,20 @@ Catatan phase 3 saat ini:
 ## Status Git Terbaru
 
 Recent commits terpenting di `main`:
-- `d6c4a15` `fix(hr): add quarter leave quota and reviewer auto-fill`
-- `aaf6827` `feat(auth): finish KABAG role system foundation`
+- `c723958` Tambah rekap breakdown cabang/divisi/jabatan/grade/kelompok di summary rekap.xlsx
+- `8346a61` Remove export-accounts-a6 route
+- `e813dde` Update Edit Deduction — tombol edit adjustment di Finance + server action `updatePayrollAdjustment`
+- `dbc7f95` Tambah tombol Sync Akses di /employees untuk sinkronisasi role pengguna
 
 Status kerja saat handover ini ditulis:
-- dokumentasi root dan kurikulum codebase sudah diperbarui agar sesuai route/action/engine aktual
-- cek `git status` sebelum melanjutkan karena sesi dokumentasi ini membuat perubahan file markdown
+- semua modul MVP sudah usable; lihat tabel Status Phase di bawah
+- dokumentasi disinkronkan ulang 2026-05-19
 
-Update dokumentasi 2026-05-04:
-- `AGENTS.md`, `CLAUDE.md`, dan `agent-startup-prompt.md` sudah mengikuti alur code aktual.
-- `README.md` sudah diganti dari template Next.js menjadi README project.
-- `docs/onboarding-curriculum.md` dan `docs/codebase-curriculum/*` inti sudah diperbarui untuk users, settings, schedule/scheduler, KABAG/SPV division scope, master shift, payroll PDF/XLSX, dan test aktual.
-- `references/implementation-playbook.md` dan `references/tech-stack.md` diberi catatan penyelarasan code.
+Update dokumentasi 2026-05-19:
+- `HANDOVER.md` diperbarui: commits terbaru, fitur baru Finance, rekap.xlsx.
+- `CLAUDE.md` diperbarui: section Payroll Adjustments ditambah `updatePayrollAdjustment`.
+- `docs/codebase-curriculum/10-payroll-module.md` diperbarui: export rekap, edit adjustment.
+- `docs/codebase-curriculum/00-overview.md` diperbarui: status modul terkini.
 
 ---
 
@@ -240,11 +242,14 @@ Sudah ada:
 - payroll detail per employee
 - payslip structure
 - payslip PDF route
-- payroll Excel export route
+- payroll Excel export route (`/payroll/[periodId]/export.xlsx`)
+- payroll rekap Excel route (`/payroll/[periodId]/rekap.xlsx`) — sheet Summary berisi breakdown per tab, cabang, divisi, jabatan, grade, dan kelompok karyawan tersusun ke kanan
 - finance dashboard route
+- adjustment payroll: tambah, edit, hapus — dengan business rules per kategori (BPJS, Kasbon, Ganti Rugi, Cicilan, dll.)
+- recurring adjustment (BPJS, Transport) disimpan di `recurring_payroll_adjustments`
 
 Server-side payroll entry points penting:
-- `getPayrollWorkspace()`
+- `getPayrollWorkspace()` — termasuk `branchName` di results sejak 2026-05-19
 - `getPayrollEmployeeDetail()`
 - `createPayrollPeriod()`
 - `/payroll/page.tsx` auto-calls `generatePayrollPreview()` for periods before `FINALIZED`
@@ -252,6 +257,9 @@ Server-side payroll entry points penting:
 - `finalizePayroll()`
 - `markPayrollPaid()`
 - `lockPayrollPeriod()`
+- `addPayrollAdjustment()`
+- `updatePayrollAdjustment()` — edit nominal dan keterangan adjustment; enforce batas kasbon
+- `deletePayrollAdjustment()`
 
 ## Route Status Saat Ini
 
@@ -275,8 +283,10 @@ Server-side payroll entry points penting:
 | `/payroll` | Active | Payroll workspace |
 | `/payroll/[periodId]/[employeeId]` | Active | Payroll detail / payslip structure |
 | `/payroll/[periodId]/[employeeId]/payslip.pdf` | Active | Payslip PDF |
-| `/payroll/[periodId]/export.xlsx` | Active | Payroll export |
-| `/finance` | Active | Finance summary |
+| `/payroll/[periodId]/export.xlsx` | Active | Payroll export Excel (per karyawan) |
+| `/payroll/[periodId]/rekap.xlsx` | Active | Rekap Excel per kategori + breakdown summary |
+| `/payroll/[periodId]/slips.pdf` | Active | Bulk payslip PDF |
+| `/finance` | Active | Finance summary — gaji pokok, grade, adjustment (tambah/edit/hapus) |
 
 ---
 

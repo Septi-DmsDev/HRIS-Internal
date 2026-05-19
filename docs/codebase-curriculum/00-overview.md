@@ -114,8 +114,8 @@ Employee Link
 | Ticket approval queue | ada | `/ticketingapproval` dipakai role approver untuk antrian dan histori approval tiket |
 | Review & incident | ada | review score 5 aspek, validate review, create incident |
 | Training evaluation | ada | keputusan lulus/gagal ada; payroll kini mendukung prorate bonus fulltime/disiplin untuk kelulusan training di tengah periode |
-| Payroll | ada, perlu hardening | period, snapshot, preview, finalize, paid, lock, export Excel, payslip PDF |
-| Finance dashboard | ada | membaca payroll result dan summary per divisi |
+| Payroll | ada, perlu hardening | period, snapshot, preview, finalize, paid, lock, export Excel, payslip PDF, rekap Excel dengan breakdown summary |
+| Finance dashboard | ada | salary config, grade compensation, adjustment (tambah/edit/hapus per kategori) |
 | Scheduler | ada | `/scheduler` route tersedia |
 | RLS policy | perlu verifikasi | tidak terlihat jelas sebagai policy lengkap di repo |
 

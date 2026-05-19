@@ -291,7 +291,9 @@ Aturan akses:
 | Cicilan | Karyawan tertentu yang punya pinjaman | Recurring setiap bulan; wajib isi sisa tenor (bulan); tenor dicatat bukan otomatis didekrementasi — finance input manual tiap periode sampai tenor habis |
 
 Catatan implementasi:
-- Business rules di-enforce server-side di `addPayrollAdjustment` (`src/server/actions/payroll.ts`)
+- Business rules di-enforce server-side di `addPayrollAdjustment` dan `updatePayrollAdjustment` (`src/server/actions/payroll.ts`)
 - Kategori period-specific disimpan sebagai prefix di field `reason`; BPJS dan Uang Transport disimpan sebagai recurring adjustment aktif dengan `adjustment_type` tetap `ADDITION`/`DEDUCTION`
 - Format: `KASBON`, `BPJS::catatan`, `TRANSPORT::catatan`, `GANTI_RUGI_PERSONAL::deskripsi`, `GANTI_RUGI_TEAM::deskripsi`, `CICILAN::12::deskripsi`, `MANUAL_ADDITION::alasan`
+- Edit adjustment (`updatePayrollAdjustment`) hanya mengubah nominal dan keterangan; kategori dan karyawan tidak bisa diubah setelah dibuat
+- Batas Rp 300.000 untuk KASBON di-enforce ulang saat edit (menghitung total kasbon lain di periode yang sama, exclude baris yang sedang diedit)
 

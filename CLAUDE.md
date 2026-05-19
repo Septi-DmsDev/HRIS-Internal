@@ -118,23 +118,41 @@ Adjustment payroll (`payroll_adjustments`) kini pakai sistem kategori bertipe, m
 | Kategori | Arah | Karyawan | Rule |
 |---|---|---|---|
 | `MANUAL_ADDITION` | Penambah | Semua | Bebas, perlu keterangan |
+| `TRANSPORT` | Penambah | Semua | Recurring bulanan |
+| `BONUS_OMSET_1_CSM` | Penambah | Divisi CSM | Sekali per periode |
+| `BONUS_OMSET_2_CSM` | Penambah | Divisi CSM | Sekali per periode |
+| `BONUS_OMSET_3_CSM` | Penambah | Divisi CSM | Sekali per periode |
+| `BONUS_KINERJA_CSM_TERTINGGI` | Penambah | Divisi CSM | Sekali per periode |
+| `BONUS_COUNTER_MESIN` | Penambah | Divisi Printing | Sekali per periode |
 | `BPJS` | Pengurang | Semua | Recurring bulanan, tidak ada batas |
 | `KASBON` | Pengurang | Semua | Maks **Rp 300.000** per karyawan per periode |
 | `GANTI_RUGI_PERSONAL` | Pengurang | Semua | **Sekali** per karyawan per periode |
 | `GANTI_RUGI_TEAM` | Pengurang | **MANAGERIAL only** | **Sekali** per karyawan per periode |
 | `CICILAN` | Pengurang | Tertentu | Perlu sisa tenor (bulan); recurring manual |
 
-Business rules di-enforce di `addPayrollAdjustment` (server action). Field `adjustmentType` di DB tetap `ADDITION`/`DEDUCTION`; kategori dibaca dari prefix `reason`.
+Business rules di-enforce di `addPayrollAdjustment` dan `updatePayrollAdjustment` (server action). Field `adjustmentType` di DB tetap `ADDITION`/`DEDUCTION`; kategori dibaca dari prefix `reason`.
+
+**Server actions adjustment:**
+- `addPayrollAdjustment` — tambah adjustment baru, enforce semua business rules
+- `updatePayrollAdjustment` — edit nominal dan keterangan adjustment yang sudah ada; enforce batas kasbon (exclude ID yang sedang diedit); tidak mengubah kategori/karyawan
+- `deletePayrollAdjustment` — hapus adjustment; RECURRING di-soft-deactivate, PERIOD di-hard-delete
+
+**UI adjustment (Finance → tab Adjustment):**
+- Tombol **Tambah Adjustment** → dialog add
+- Tombol edit (ikon pensil) di setiap baris → dialog edit (nominal + keterangan)
+- Tombol hapus (ikon tong sampah) di setiap baris → konfirmasi lalu delete
 
 **Encoding reason:**
 ```
 BPJS
 BPJS::catatan
+TRANSPORT
 KASBON::catatan
 GANTI_RUGI_PERSONAL::deskripsi
 GANTI_RUGI_TEAM::deskripsi
 CICILAN::12::nama barang
 MANUAL_ADDITION::alasan
+BONUS_OMSET_1_CSM::catatan
 ```
 
 ## Database & Migrations
