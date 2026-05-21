@@ -88,3 +88,12 @@ export type BatchSubmitDraftInput = z.infer<typeof batchSubmitDraftSchema>;
 // Schema untuk menambah job ID ke draft yang sudah pending (tanpa hapus entri existing)
 export const appendToPendingDraftSchema = batchSubmitDraftSchema;
 export type AppendToPendingDraftInput = z.infer<typeof appendToPendingDraftSchema>;
+
+// Schema untuk edit satu entri pending (DIAJUKAN/DIAJUKAN_ULANG)
+export const updatePendingActivityEntrySchema = z.object({
+  id: z.string().uuid("ID aktivitas tidak valid."),
+  pointCatalogEntryId: z.string().uuid("Katalog pekerjaan tidak valid."),
+  jobId: z.string().trim().optional().transform((v) => v || undefined),
+  quantity: z.coerce.number().positive("Qty harus lebih besar dari 0."),
+});
+export type UpdatePendingActivityEntryInput = z.infer<typeof updatePendingActivityEntrySchema>;

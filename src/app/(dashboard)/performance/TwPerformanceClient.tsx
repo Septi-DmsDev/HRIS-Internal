@@ -13,8 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Camera, ChevronDown, ScanSearch, Trash2 } from "lucide-react";
-import { appendToPendingDraft, batchSubmitDraft, deleteActivityEntry } from "@/server/actions/performance";
+import { Camera, ChevronDown, Pencil, ScanSearch, Trash2 } from "lucide-react";
+import { appendToPendingDraft, batchSubmitDraft, deleteActivityEntry, updatePendingActivityEntry } from "@/server/actions/performance";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
 import { formatPointNumber } from "@/lib/format/number";
 import type { TwCatalogEntry, TwActivityItem } from "@/server/actions/performance";
@@ -204,6 +204,19 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
   const [historyDetail, setHistoryDetail] = useState<DateGroup | null>(null);
   // Mode tambah ke draft pending
   const [appendingDate, setAppendingDate] = useState<string | null>(null);
+
+  // Edit satu entri pending di modal detail
+  type EditingEntry = {
+    id: string;
+    jobId: string;
+    catalogEntryId: string;
+    qty: string;
+  };
+  const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  const [editEntryError, setEditEntryError] = useState<string | null>(null);
+  const [editEntryCatalogOpen, setEditEntryCatalogOpen] = useState(false);
+  const [editEntryCatalogSearch, setEditEntryCatalogSearch] = useState("");
+  const editEntryCatalogRef = useRef<HTMLDivElement>(null);
   const [openOcrModal, setOpenOcrModal] = useState(false);
   const [ocrPending, setOcrPending] = useState(false);
   const [ocrText, setOcrText] = useState("");
@@ -428,6 +441,92 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
     setError(null);
     setSuccess(null);
     setActiveTab("submit");
+  }
+
+  // Tutup combobox edit entry saat klik di luar
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (editEntryCatalogRef.current && !editEntryCatalogRef.current.contains(e.target as Node)) {
+        setEditEntryCatalogOpen(false);
+        setEditEntryCatalogSearch("");
+      }
+    }
+    if (editEntryCatalogOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [editEntryCatalogOpen]);
+
+  async function handleDeleteSingleEntry(entryId: string) {
+    const ok = window.confirm("Hapus entri ini dari draft?");
+    if (!ok) return;
+    setPending(true);
+    setError(null);
+    try {
+      const result = await deleteActivityEntry(entryId);
+      if (result && "error" in result) {
+        setError(result.error ?? "Gagal menghapus entri.");
+        return;
+      }
+      // Perbarui historyDetail secara optimistis
+      setHistoryDetail((prev) => {
+        if (!prev) return null;
+        const entries = prev.entries.filter((e) => e.id !== entryId);
+        if (entries.length === 0) return null; // tutup modal jika kosong
+        const totalJobs = new Set(
+          entries.map((e) => resolveActivityJobIdLabel(e.jobIdSnapshot, null, e.notes))
+        ).size;
+        return { ...prev, entries, totalJobs };
+      });
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleSaveEditEntry() {
+    if (!editingEntry) return;
+    if (!editingEntry.catalogEntryId) { setEditEntryError("Pilih jenis pekerjaan."); return; }
+    const qty = Number(editingEntry.qty);
+    if (!qty || qty <= 0) { setEditEntryError("Qty harus lebih besar dari 0."); return; }
+    setPending(true);
+    setEditEntryError(null);
+    try {
+      const result = await updatePendingActivityEntry({
+        id: editingEntry.id,
+        pointCatalogEntryId: editingEntry.catalogEntryId,
+        jobId: editingEntry.jobId || undefined,
+        quantity: qty,
+      });
+      if (result && "error" in result && result.error) {
+        setEditEntryError(result.error);
+        return;
+      }
+      // Perbarui historyDetail secara optimistis
+      const cat = catalogEntries.find((c) => c.id === editingEntry.catalogEntryId);
+      setHistoryDetail((prev) => {
+        if (!prev) return null;
+        const entries = prev.entries.map((e) => {
+          if (e.id !== editingEntry.id) return e;
+          const pv = Number(cat?.pointValue ?? e.pointValueSnapshot);
+          return {
+            ...e,
+            jobIdSnapshot: editingEntry.jobId || e.jobIdSnapshot,
+            pointCatalogEntryId: editingEntry.catalogEntryId,
+            workNameSnapshot: cat?.workName ?? e.workNameSnapshot,
+            pointValueSnapshot: pv,
+            quantity: qty,
+            totalPoints: Number((pv * qty).toFixed(2)),
+          };
+        });
+        const totalJobs = new Set(
+          entries.map((e) => resolveActivityJobIdLabel(e.jobIdSnapshot, null, e.notes))
+        ).size;
+        return { ...prev, entries, totalJobs };
+      });
+      setEditingEntry(null);
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
   }
 
   function handleAddToPending(group: DateGroup) {
@@ -1149,27 +1248,192 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                 {" • "}
                 Status: <span className="font-semibold text-slate-900">{historyDetail.statusLabel}</span>
               </p>
+
+              {editEntryError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 flex-shrink-0">
+                  {editEntryError}
+                </div>
+              )}
+
               <div className="overflow-auto rounded-lg border border-slate-200 flex-1 min-h-0">
                 <table className="w-full text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Job ID</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pekerjaan</th>
-                      <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Qty</th>
-                      <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Poin</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Job ID</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pekerjaan</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Qty</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Poin</th>
+                      {historyDetail.canAddTo && (
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {historyDetail.entries.map((entry) => (
-                      <tr key={entry.id} className="bg-white">
-                        <td className="px-4 py-2 font-mono text-xs text-slate-700">
-                          {resolveActivityJobIdLabel(entry.jobIdSnapshot, null, entry.notes)}
-                        </td>
-                        <td className="px-4 py-2 text-slate-900">{entry.workNameSnapshot}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-slate-700">{entry.quantity}</td>
-                        <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-900">{entry.totalPoints}</td>
-                      </tr>
-                    ))}
+                    {historyDetail.entries.map((entry) => {
+                      const isEditing = editingEntry?.id === entry.id;
+                      const filteredEditCatalog = editEntryCatalogSearch.trim()
+                        ? catalogEntries.filter((c) =>
+                            c.workName.toLowerCase().includes(editEntryCatalogSearch.toLowerCase()) ||
+                            c.externalCode?.toLowerCase().includes(editEntryCatalogSearch.toLowerCase())
+                          )
+                        : catalogEntries;
+                      const editCat = catalogEntries.find((c) => c.id === editingEntry?.catalogEntryId);
+                      return (
+                        <Fragment key={entry.id}>
+                          <tr className={isEditing ? "bg-blue-50" : "bg-white"}>
+                            <td className="px-3 py-2 font-mono text-xs text-slate-700">
+                              {resolveActivityJobIdLabel(entry.jobIdSnapshot, null, entry.notes)}
+                            </td>
+                            <td className="px-3 py-2 text-slate-900">{entry.workNameSnapshot}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-slate-700">{entry.quantity}</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{entry.totalPoints}</td>
+                            {historyDetail.canAddTo && (
+                              <td className="px-3 py-2 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    title="Edit entri"
+                                    disabled={pending}
+                                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
+                                    onClick={() => {
+                                      setEditEntryError(null);
+                                      setEditingEntry({
+                                        id: entry.id,
+                                        jobId: resolveActivityJobIdLabel(entry.jobIdSnapshot, null, entry.notes) === "—"
+                                          ? ""
+                                          : resolveActivityJobIdLabel(entry.jobIdSnapshot, null, entry.notes),
+                                        catalogEntryId: entry.pointCatalogEntryId,
+                                        qty: String(entry.quantity),
+                                      });
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Hapus entri"
+                                    disabled={pending}
+                                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                    onClick={() => void handleDeleteSingleEntry(entry.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+
+                          {/* Baris edit inline */}
+                          {isEditing && editingEntry && (
+                            <tr className="bg-blue-50 border-t border-blue-200">
+                              <td colSpan={historyDetail.canAddTo ? 5 : 4} className="px-3 py-3">
+                                <div className="flex flex-col gap-2">
+                                  <div className="flex flex-wrap gap-2 items-start">
+                                    {/* Job ID */}
+                                    <div className="flex flex-col gap-1">
+                                      <label className="text-xs font-medium text-slate-600">Job ID</label>
+                                      <Input
+                                        className="h-7 w-28 text-xs font-mono"
+                                        placeholder="mis. SA 36342"
+                                        value={editingEntry.jobId}
+                                        onChange={(e) =>
+                                          setEditingEntry((prev) => prev ? { ...prev, jobId: e.target.value.toUpperCase() } : null)
+                                        }
+                                      />
+                                    </div>
+
+                                    {/* Jenis Pekerjaan */}
+                                    <div className="flex flex-col gap-1 flex-1 min-w-[160px]" ref={editEntryCatalogRef}>
+                                      <label className="text-xs font-medium text-slate-600">Jenis Pekerjaan</label>
+                                      <div className="relative">
+                                        <button
+                                          type="button"
+                                          className="flex h-7 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-2 text-xs hover:border-slate-300"
+                                          onClick={() => { setEditEntryCatalogOpen((v) => !v); setEditEntryCatalogSearch(""); }}
+                                        >
+                                          <span className="truncate text-left">
+                                            {editCat ? editCat.workName : <span className="text-slate-400">Pilih jenis...</span>}
+                                          </span>
+                                          <ChevronDown className="ml-1 h-3 w-3 shrink-0 text-slate-400" />
+                                        </button>
+                                        {editEntryCatalogOpen && (
+                                          <div className="absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-slate-200 bg-white shadow-lg">
+                                            <div className="p-1.5">
+                                              <Input
+                                                autoFocus
+                                                className="h-7 text-xs"
+                                                placeholder="Cari jenis pekerjaan..."
+                                                value={editEntryCatalogSearch}
+                                                onChange={(e) => setEditEntryCatalogSearch(e.target.value)}
+                                              />
+                                            </div>
+                                            <div className="max-h-44 overflow-y-auto">
+                                              {filteredEditCatalog.length === 0 ? (
+                                                <p className="px-3 py-2 text-xs text-slate-500">Tidak ditemukan.</p>
+                                              ) : (
+                                                filteredEditCatalog.map((c) => (
+                                                  <button
+                                                    key={c.id}
+                                                    type="button"
+                                                    className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                                                    onClick={() => {
+                                                      setEditingEntry((prev) => prev ? { ...prev, catalogEntryId: c.id } : null);
+                                                      setEditEntryCatalogOpen(false);
+                                                      setEditEntryCatalogSearch("");
+                                                    }}
+                                                  >
+                                                    <span>{c.workName}</span>
+                                                    <span className="ml-2 shrink-0 text-slate-400">{c.pointValue} pt</span>
+                                                  </button>
+                                                ))
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Qty */}
+                                    <div className="flex flex-col gap-1">
+                                      <label className="text-xs font-medium text-slate-600">Qty</label>
+                                      <Input
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        className="h-7 w-20 text-xs text-right"
+                                        value={editingEntry.qty}
+                                        onChange={(e) =>
+                                          setEditingEntry((prev) => prev ? { ...prev, qty: e.target.value } : null)
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-3 text-xs"
+                                      disabled={pending}
+                                      onClick={() => void handleSaveEditEntry()}
+                                    >
+                                      Simpan
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-3 text-xs"
+                                      onClick={() => { setEditingEntry(null); setEditEntryError(null); }}
+                                    >
+                                      Batal
+                                    </Button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

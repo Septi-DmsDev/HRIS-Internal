@@ -37,6 +37,7 @@ import {
   dailyActivityEntrySchema,
   employeeMonthlyPerformanceInputSchema,
   monthlyPerformanceGenerationSchema,
+  updatePendingActivityEntrySchema,
 } from "@/lib/validations/point";
 import { resolvePayrollPeriod } from "@/server/payroll-engine/resolve-payroll-period";
 import { userRoles } from "@/lib/db/schema/auth";
@@ -1876,6 +1877,95 @@ export async function batchDecideDraftActivities(input: {
 
   revalidatePath("/performance");
   return { success: true, count: entries.length };
+}
+
+/**
+ * Edit satu entri performa yang masih DIAJUKAN atau DIAJUKAN_ULANG.
+ * Karyawan hanya bisa edit entri milik sendiri.
+ * Bidang yang bisa diubah: jenis pekerjaan (catalog), job ID, dan qty.
+ */
+export async function updatePendingActivityEntry(input: unknown) {
+  const authError = await checkRole(PERFORMANCE_SELF_SERVICE_ROLES);
+  if (authError) return { error: authError.error ?? "Akses ditolak." };
+
+  const parsed = updatePendingActivityEntrySchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Input tidak valid." };
+
+  const roleRow = await getCurrentUserRoleRow();
+  if (!roleRow.employeeId) return { error: "Akun belum terhubung ke data karyawan." };
+
+  const hasSnapshotColumn = await hasJobIdSnapshotColumn();
+
+  const [existing] = await db
+    .select({
+      id: dailyActivityEntries.id,
+      employeeId: dailyActivityEntries.employeeId,
+      status: dailyActivityEntries.status,
+    })
+    .from(dailyActivityEntries)
+    .where(eq(dailyActivityEntries.id, parsed.data.id))
+    .limit(1);
+
+  if (!existing) return { error: "Aktivitas tidak ditemukan." };
+  if (existing.employeeId !== roleRow.employeeId) {
+    return { error: "Anda hanya dapat mengedit aktivitas milik sendiri." };
+  }
+  if (!["DIAJUKAN", "DIAJUKAN_ULANG"].includes(existing.status)) {
+    return { error: "Hanya aktivitas yang sedang direview HRD yang dapat diedit." };
+  }
+
+  const activeVersion = await getActivePointCatalogVersion();
+  if (!activeVersion) return { error: "Belum ada versi katalog poin aktif." };
+
+  const [catalogRow] = await db
+    .select()
+    .from(pointCatalogEntries)
+    .where(
+      and(
+        eq(pointCatalogEntries.id, parsed.data.pointCatalogEntryId),
+        eq(pointCatalogEntries.versionId, activeVersion.id),
+        eq(pointCatalogEntries.isActive, true)
+      )
+    )
+    .limit(1);
+  if (!catalogRow) return { error: "Katalog pekerjaan tidak valid atau tidak aktif." };
+
+  const pointValue = toNumber(catalogRow.pointValue);
+  const totalPoints = Number((pointValue * parsed.data.quantity).toFixed(2));
+  const snapshotValue = parsed.data.jobId ?? catalogRow.externalCode ?? null;
+
+  if (hasSnapshotColumn) {
+    await db
+      .update(dailyActivityEntries)
+      .set({
+        pointCatalogEntryId: catalogRow.id,
+        pointCatalogDivisionName: catalogRow.divisionName,
+        jobIdSnapshot: snapshotValue,
+        workNameSnapshot: catalogRow.workName,
+        unitDescriptionSnapshot: catalogRow.unitDescription,
+        pointValueSnapshot: pointValue.toFixed(2),
+        quantity: parsed.data.quantity.toFixed(2),
+        totalPoints: totalPoints.toFixed(2),
+      })
+      .where(eq(dailyActivityEntries.id, parsed.data.id));
+  } else {
+    await db
+      .update(dailyActivityEntriesLegacy)
+      .set({
+        pointCatalogEntryId: catalogRow.id,
+        pointCatalogDivisionName: catalogRow.divisionName,
+        workNameSnapshot: catalogRow.workName,
+        unitDescriptionSnapshot: catalogRow.unitDescription,
+        pointValueSnapshot: pointValue.toFixed(2),
+        quantity: parsed.data.quantity.toFixed(2),
+        totalPoints: totalPoints.toFixed(2),
+        notes: encodeLegacyNotes(snapshotValue),
+      })
+      .where(eq(dailyActivityEntriesLegacy.id, parsed.data.id));
+  }
+
+  revalidatePath("/performance");
+  return { success: true };
 }
 
 export async function deleteActivityEntry(activityEntryId: string) {
