@@ -747,7 +747,7 @@ export async function submitDailyActivityEntry(input: unknown) {
 }
 
 export async function approveDailyActivityEntry(input: unknown) {
-  const authError = await checkRole(["SUPER_ADMIN", "HRD", "KABAG", "SPV"]);
+  const authError = await checkRole(["SUPER_ADMIN", "HRD"]);
   if (authError) return authError;
 
   const parsed = dailyActivityDecisionSchema.safeParse(input);
@@ -775,8 +775,8 @@ export async function approveDailyActivityEntry(input: unknown) {
   const inScope = await assertActivityScope(role, roleRow.divisionIds, existingEntry.employeeId);
   if (!inScope) return { error: "Akses ditolak untuk aktivitas di luar scope divisi Anda." };
 
-  const nextStatus = DIV_SCOPED_ROLES.includes(role) ? "DISETUJUI_SPV" : "OVERRIDE_HRD";
-  const logAction = DIV_SCOPED_ROLES.includes(role) ? "APPROVE_SPV" : "OVERRIDE_HRD";
+  const nextStatus = "OVERRIDE_HRD";
+  const logAction = "OVERRIDE_HRD";
 
   await db.transaction(async (tx) => {
     await tx
@@ -803,7 +803,7 @@ export async function approveDailyActivityEntry(input: unknown) {
 }
 
 export async function rejectDailyActivityEntry(input: unknown) {
-  const authError = await checkRole(["SUPER_ADMIN", "HRD", "KABAG", "SPV"]);
+  const authError = await checkRole(["SUPER_ADMIN", "HRD"]);
   if (authError) return authError;
 
   const parsed = dailyActivityDecisionSchema.safeParse(input);
@@ -1402,7 +1402,7 @@ export async function batchSubmitDraft(input: unknown) {
     );
 
   const hasPending = existing.some((e) => ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(e.status));
-  if (hasPending) return { error: "Ada draft yang sedang menunggu review SPV untuk tanggal ini." };
+  if (hasPending) return { error: "Ada draft yang sedang menunggu review HRD untuk tanggal ini." };
 
   const hasRejected = existing.some((e) => e.status === "DITOLAK_SPV");
   const nextStatus = hasRejected ? "DIAJUKAN_ULANG" : "DIAJUKAN";
@@ -1683,7 +1683,7 @@ export async function batchDecideDraftActivities(input: {
   action: "approve" | "reject";
   notes?: string;
 }) {
-  const authError = await checkRole(["SUPER_ADMIN", "HRD", "KABAG", "SPV"]);
+  const authError = await checkRole(["SUPER_ADMIN", "HRD"]);
   if (authError) return authError;
 
   if (!Array.isArray(input.ids) || input.ids.length === 0) {
@@ -1719,12 +1719,8 @@ export async function batchDecideDraftActivities(input: {
   }
 
   const isApprove = input.action === "approve";
-  const nextStatus = isApprove
-    ? DIV_SCOPED_ROLES.includes(role) ? "DISETUJUI_SPV" : "OVERRIDE_HRD"
-    : "DITOLAK_SPV";
-  const logAction = (isApprove
-    ? DIV_SCOPED_ROLES.includes(role) ? "APPROVE_SPV" : "OVERRIDE_HRD"
-    : "REJECT_SPV") as "APPROVE_SPV" | "OVERRIDE_HRD" | "REJECT_SPV";
+  const nextStatus = isApprove ? "OVERRIDE_HRD" : "DITOLAK_SPV";
+  const logAction = (isApprove ? "OVERRIDE_HRD" : "REJECT_SPV") as "OVERRIDE_HRD" | "REJECT_SPV";
 
   await db.transaction(async (tx) => {
     await tx
@@ -1770,8 +1766,9 @@ export async function deleteActivityEntry(activityEntryId: string) {
     .limit(1);
 
   if (!existingEntry) return { error: "Aktivitas tidak ditemukan." };
-  if (existingEntry.status !== "DRAFT") {
-    return { error: "Hanya aktivitas berstatus DRAFT yang dapat dihapus." };
+  const deletableStatuses = ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"] as const;
+  if (!deletableStatuses.includes(existingEntry.status as (typeof deletableStatuses)[number])) {
+    return { error: "Hanya aktivitas berstatus DRAFT atau DIAJUKAN yang dapat dihapus." };
   }
 
   if (PERFORMANCE_SELF_SERVICE_ROLES.includes(role)) {

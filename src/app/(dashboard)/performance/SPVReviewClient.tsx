@@ -1,18 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { batchDecideDraftActivities } from "@/server/actions/performance";
 import { formatPointNumber } from "@/lib/format/number";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
 
@@ -48,11 +45,6 @@ type ActivityGroup = {
   activities: SpvActivityRow[];
 };
 
-type DecisionState = {
-  action: "approve" | "reject";
-  group: ActivityGroup;
-};
-
 const STATUS_LABEL: Record<string, string> = {
   DIAJUKAN: "Diajukan",
   DIAJUKAN_ULANG: "Diajukan Ulang",
@@ -68,13 +60,7 @@ type Props = {
 };
 
 export default function SPVReviewClient({ activities }: Props) {
-  const router = useRouter();
   const [detailGroup, setDetailGroup] = useState<ActivityGroup | null>(null);
-  const [decision, setDecision] = useState<DecisionState | null>(null);
-  const [notes, setNotes] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const groups = useMemo((): ActivityGroup[] => {
     const map = new Map<string, ActivityGroup>();
@@ -104,61 +90,16 @@ export default function SPVReviewClient({ activities }: Props) {
     return Array.from(map.values()).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   }, [activities]);
 
-  function openDecision(action: "approve" | "reject", group: ActivityGroup) {
-    setError(null);
-    setNotes("");
-    setDecision({ action, group });
-  }
-
-  async function handleDecision() {
-    if (!decision) return;
-    setPending(true);
-    setError(null);
-    try {
-      const result = await batchDecideDraftActivities({
-        ids: decision.group.ids,
-        action: decision.action,
-        notes: notes.trim() || undefined,
-      });
-      if (result && "error" in result) {
-        setError(result.error ?? "Gagal memproses.");
-        return;
-      }
-      setSuccess(
-        decision.action === "approve"
-          ? `${decision.group.activities.length} aktivitas ${decision.group.employeeName} disetujui.`
-          : `${decision.group.activities.length} aktivitas ${decision.group.employeeName} ditolak.`
-      );
-      setDecision(null);
-      setDetailGroup(null);
-      setNotes("");
-      router.refresh();
-    } finally {
-      setPending(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Antrian Review Aktivitas</h2>
+          <h2 className="text-base font-semibold text-slate-900">Monitoring Pengajuan Aktivitas</h2>
           <p className="text-sm text-slate-500">
-            {groups.length} batch - {activities.length} aktivitas menunggu persetujuan
+            {groups.length} batch - {activities.length} aktivitas diajukan ke HRD
           </p>
         </div>
       </div>
-
-      {success && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {success}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {groups.length === 0 ? (
         <div className="rounded-lg border border-slate-100 bg-slate-50 px-6 py-16 text-center">
@@ -200,15 +141,14 @@ export default function SPVReviewClient({ activities }: Props) {
                   <td className="px-4 py-3 text-xs text-slate-500">{group.submittedAt}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" onClick={() => openDecision("approve", group)}>Terima</Button>
-                      <Button size="sm" variant="destructive" onClick={() => openDecision("reject", group)}>Tolak</Button>
+                      <Button size="sm" variant="outline" onClick={() => setDetailGroup(group)}>Lihat</Button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">Klik baris untuk melihat rincian aktivitas</p>
+          <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">SPV/KABAG hanya monitoring. Approval diproses HRD.</p>
         </div>
       )}
 
@@ -258,50 +198,9 @@ export default function SPVReviewClient({ activities }: Props) {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <div className="flex justify-end">
             <Button variant="outline" onClick={() => setDetailGroup(null)}>Tutup</Button>
-            <Button variant="destructive" onClick={() => { openDecision("reject", detailGroup!); setDetailGroup(null); }}>Tolak</Button>
-            <Button onClick={() => { openDecision("approve", detailGroup!); setDetailGroup(null); }}>Terima</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={decision !== null} onOpenChange={(open) => !open && setDecision(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{decision?.action === "approve" ? "Terima Draft" : "Tolak Draft"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              <span className="font-medium">{decision?.group.employeeName}</span>
-              {" - "}{decision?.group.workDate}
-              {" - "}{decision?.group.activities.length} aktivitas
-            </p>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">
-                {decision?.action === "reject" ? "Alasan Penolakan" : "Catatan (opsional)"}
-                {decision?.action === "reject" && <span className="ml-1 text-red-500">*</span>}
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder={decision?.action === "reject" ? "Tuliskan alasan penolakan..." : ""}
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDecision(null)} disabled={pending}>Batal</Button>
-            <Button
-              variant={decision?.action === "reject" ? "destructive" : "default"}
-              onClick={() => void handleDecision()}
-              disabled={pending || (decision?.action === "reject" && !notes.trim())}
-            >
-              {pending ? "Memproses..." : decision?.action === "approve" ? "Terima Semua" : "Tolak Semua"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

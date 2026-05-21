@@ -130,7 +130,7 @@ async function AdminDashboard() {
           <AlertCard
             label="Tiket Izin / Sakit / Cuti"
             value={stats.pendingApprovals.tickets}
-            href="/tickets"
+            href="/ticketingapproval"
           />
           <AlertCard
             label="Aktivitas Harian Perlu Disetujui"
@@ -268,13 +268,19 @@ async function AdminDashboard() {
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ complete_profile?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
   const roleRow = await getCurrentUserRoleRow();
   const role = roleRow.role as UserRole;
+  const showCompleteProfileBanner = resolvedSearchParams?.complete_profile === "1";
 
   if (ADMIN_ROLES.includes(role)) {
     return <AdminDashboard />;
   }
 
-  return <EmployeeDashboard />;
+  return <EmployeeDashboard showCompleteProfileBanner={showCompleteProfileBanner} />;
 }

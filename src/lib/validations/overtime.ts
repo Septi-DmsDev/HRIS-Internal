@@ -27,6 +27,10 @@ export const overtimeDecisionSchema = z.object({
   reviewNotes: z.string().trim().max(500).optional(),
 });
 
+export const overtimeDeleteSchema = z.object({
+  requestId: z.string().uuid("ID pengajuan overtime tidak valid."),
+});
+
 export const spvSelfOvertimeRequestSchema = z.object({
   requestDate: z.coerce.date({ message: "Tanggal lembur wajib diisi." }),
   overtimeType: z.enum([
@@ -79,6 +83,7 @@ export const overtimeDraftSubmitSchema = z.object({
 
 export type OvertimeRequestInput = z.infer<typeof overtimeRequestSchema>;
 export type OvertimeDecisionInput = z.infer<typeof overtimeDecisionSchema>;
+export type OvertimeDeleteInput = z.infer<typeof overtimeDeleteSchema>;
 export type SpvSelfOvertimeRequestInput = z.infer<typeof spvSelfOvertimeRequestSchema>;
 export type SpvScheduleOvertimeInput = z.infer<typeof spvScheduleOvertimeSchema>;
 export type OvertimeDraftSubmitInput = z.infer<typeof overtimeDraftSubmitSchema>;

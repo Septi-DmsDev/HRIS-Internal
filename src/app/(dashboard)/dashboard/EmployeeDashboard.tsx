@@ -86,12 +86,14 @@ function StatCard({
   value,
   sub,
   accent = false,
+  valueClassName,
   icon: Icon,
 }: {
   label: string;
   value: string | number;
   sub?: string;
   accent?: boolean;
+  valueClassName?: string;
   icon: React.ElementType;
 }) {
   return (
@@ -102,7 +104,7 @@ function StatCard({
           <Icon size={15} className={accent ? "text-teal-600" : "text-slate-400"} />
         </div>
       </div>
-      <p className={`text-2xl font-extrabold tracking-tight ${accent ? "text-teal-600" : "text-slate-800"}`}>
+      <p className={`${valueClassName ?? "text-2xl"} font-extrabold tracking-tight ${accent ? "text-teal-600" : "text-slate-800"}`}>
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
@@ -142,7 +144,11 @@ function QuickLinkCard({
 }
 
 
-export default async function EmployeeDashboard() {
+export default async function EmployeeDashboard({
+  showCompleteProfileBanner = false,
+}: {
+  showCompleteProfileBanner?: boolean;
+}) {
   const data = await getMyDashboard();
 
   // If not linked to employee, show warning
@@ -383,6 +389,24 @@ export default async function EmployeeDashboard() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      {showCompleteProfileBanner ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Lengkapi Data Diri Terlebih Dahulu</p>
+              <p className="mt-1 text-sm text-amber-800">
+                Beberapa fitur dibatasi sampai profil pribadi lengkap (NIK, biodata, kontak, alamat, dan foto).
+              </p>
+            </div>
+            <Link
+              href="/settings"
+              className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Lengkapi Sekarang
+            </Link>
+          </div>
+        </section>
+      ) : null}
       {/* Stats Row */}
       <section>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
@@ -433,6 +457,7 @@ export default async function EmployeeDashboard() {
             label="Periode"
             value={formatPeriodShort(periodStart, periodEnd)}
             sub={`${periodStart.getUTCFullYear()}`}
+            valueClassName="text-xl sm:text-lg"
             icon={Activity}
           />
         </div>

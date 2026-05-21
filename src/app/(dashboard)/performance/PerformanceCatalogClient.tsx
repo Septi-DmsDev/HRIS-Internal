@@ -947,6 +947,7 @@ export default function PerformanceCatalogClient({
           const entry = row.original;
           const isMutable = ["DRAFT", "DITOLAK_SPV", "REVISI_TW"].includes(entry.status);
           const isApprovable = ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
+          const isDeletable = ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
           const canApprove =
             role === "SPV" || role === "KABAG" || role === "HRD" || role === "SUPER_ADMIN";
 
@@ -991,7 +992,7 @@ export default function PerformanceCatalogClient({
                   >
                     <FontAwesomeIcon icon={faPaperPlane} className="h-4 w-4" />
                   </Button>
-                  {entry.status === "DRAFT" ? (
+                  {isDeletable ? (
                     <Button
                       type="button"
                       variant="destructive"

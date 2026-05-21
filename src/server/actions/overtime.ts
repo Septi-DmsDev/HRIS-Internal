@@ -12,6 +12,7 @@ import { resolvePayrollPeriod } from "@/server/payroll-engine/resolve-payroll-pe
 import { getActivePointCatalogVersion } from "@/server/services/point-catalog-service";
 import { KPI_EMPLOYEE_GROUPS, POINT_EMPLOYEE_GROUPS } from "@/lib/employee-groups";
 import {
+  overtimeDeleteSchema,
   overtimeDecisionSchema,
   overtimeRequestSchema,
   overtimeDraftSubmitSchema,
@@ -769,6 +770,51 @@ export async function decideOvertimeRequest(input: unknown) {
       })
       .where(eq(overtimeRequests.id, parsed.data.requestId));
   }
+
+  revalidatePath("/overtime");
+  return { success: true };
+}
+
+export async function deleteOvertimeRequest(input: unknown) {
+  const authError = await checkRole(["SUPER_ADMIN", "HRD", "SPV", "KABAG", "TEAMWORK", "MANAGERIAL"]);
+  if (authError) return authError;
+  const tableError = await ensureOvertimeTableReady();
+  if (tableError) return tableError;
+
+  const parsed = overtimeDeleteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Request hapus overtime tidak valid." };
+  }
+
+  const roleRow = await getCurrentUserRoleRow();
+  const role = roleRow.role as UserRole;
+
+  const [existing] = await db
+    .select({
+      id: overtimeRequests.id,
+      employeeId: overtimeRequests.employeeId,
+      employeeDivisionId: employees.divisionId,
+    })
+    .from(overtimeRequests)
+    .leftJoin(employees, eq(overtimeRequests.employeeId, employees.id))
+    .where(eq(overtimeRequests.id, parsed.data.requestId))
+    .limit(1);
+
+  if (!existing) return { error: "Pengajuan overtime tidak ditemukan." };
+
+  if (role === "TEAMWORK" || role === "MANAGERIAL") {
+    if (!roleRow.employeeId || existing.employeeId !== roleRow.employeeId) {
+      return { error: "Anda hanya boleh menghapus pengajuan overtime milik sendiri." };
+    }
+  }
+
+  if (DIV_SCOPED_ROLES.includes(role)) {
+    if (!existing.employeeDivisionId || !roleRow.divisionIds.includes(existing.employeeDivisionId)) {
+      return { error: "Akses ditolak untuk karyawan di luar scope divisi Anda." };
+    }
+  }
+
+  await db.delete(overtimeRequests).where(eq(overtimeRequests.id, existing.id));
 
   revalidatePath("/overtime");
   return { success: true };

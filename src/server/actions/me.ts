@@ -161,6 +161,12 @@ export type MyProfileResult = {
   profileCompletionRequired: boolean;
 };
 
+function isMissingTicketStatusEnumValueError(error: unknown) {
+  const err = error as { message?: string; cause?: { message?: string } };
+  const message = `${err.message ?? ""} ${err.cause?.message ?? ""}`.toLowerCase();
+  return message.includes("invalid input value for enum") && message.includes("ticket_status");
+}
+
 const PAYROLL_SUMMARY_ROLES: UserRole[] = [
   "HRD",
   "FINANCE",
@@ -354,17 +360,34 @@ export async function getLatestPerformance(employeeId: string): Promise<MyPerfor
       .leftJoin(divisions, eq(employees.divisionId, divisions.id))
       .where(eq(employees.id, employeeId))
       .limit(1),
-    db
-      .select({ daysCount: attendanceTickets.daysCount })
-      .from(attendanceTickets)
-      .where(
-        and(
-          eq(attendanceTickets.employeeId, employeeId),
-          lte(attendanceTickets.startDate, periodEnd),
-          gte(attendanceTickets.endDate, periodStart),
-          inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"])
-        )
-      ),
+    (async () => {
+      try {
+        return await db
+          .select({ daysCount: attendanceTickets.daysCount })
+          .from(attendanceTickets)
+          .where(
+            and(
+              eq(attendanceTickets.employeeId, employeeId),
+              lte(attendanceTickets.startDate, periodEnd),
+              gte(attendanceTickets.endDate, periodStart),
+              inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"])
+            )
+          );
+      } catch (error) {
+        if (!isMissingTicketStatusEnumValueError(error)) throw error;
+        return db
+          .select({ daysCount: attendanceTickets.daysCount })
+          .from(attendanceTickets)
+          .where(
+            and(
+              eq(attendanceTickets.employeeId, employeeId),
+              lte(attendanceTickets.startDate, periodEnd),
+              gte(attendanceTickets.endDate, periodStart),
+              inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "LOCKED"])
+            )
+          );
+      }
+    })(),
   ]);
 
   const targetDailyPoints = resolvePointTargetForDivision(empRows[0]?.divisionName);

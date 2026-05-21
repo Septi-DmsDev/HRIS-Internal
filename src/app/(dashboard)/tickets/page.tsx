@@ -6,12 +6,17 @@ import TicketingClient from "./TicketingClient";
 import { getCurrentUserRoleRow } from "@/lib/auth/session";
 import type { UserRole } from "@/types";
 
+const TICKETING_DIRECT_REDIRECT_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD"];
+
 export default async function TicketingPage() {
   const roleRow = await getCurrentUserRoleRow();
   const role = roleRow.role as UserRole;
 
   if (role === "FINANCE") {
     redirect("/finance");
+  }
+  if (TICKETING_DIRECT_REDIRECT_ROLES.includes(role)) {
+    redirect("/ticketingapproval");
   }
 
   const ticketResult = await getTickets();

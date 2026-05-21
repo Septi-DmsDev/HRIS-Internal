@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Camera, ChevronDown, ScanSearch, Trash2 } from "lucide-react";
-import { batchSubmitDraft } from "@/server/actions/performance";
+import { batchSubmitDraft, deleteActivityEntry } from "@/server/actions/performance";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
 import { formatPointNumber } from "@/lib/format/number";
 import type { TwCatalogEntry, TwActivityItem } from "@/server/actions/performance";
@@ -48,6 +48,8 @@ type DateGroup = {
   statusLabel: string;
   statusType: "pending" | "approved" | "rejected" | "locked";
   canEdit: boolean;
+  canDelete: boolean;
+  deletableEntryIds: string[];
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -364,6 +366,34 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
     }
   }
 
+  async function handleDeleteHistoryGroup(group: DateGroup) {
+    if (!group.canDelete || group.deletableEntryIds.length === 0) {
+      setError("Aktivitas pada tanggal ini tidak dapat dihapus.");
+      return;
+    }
+    const ok = window.confirm(`Hapus ${group.deletableEntryIds.length} aktivitas pada tanggal ${formatDate(group.workDate)}?`);
+    if (!ok) return;
+    setPending(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      for (const id of group.deletableEntryIds) {
+        const result = await deleteActivityEntry(id);
+        if (result && "error" in result) {
+          setError(result.error ?? "Gagal menghapus aktivitas.");
+          return;
+        }
+      }
+      if (historyDetail?.workDate === group.workDate) {
+        setHistoryDetail(null);
+      }
+      setSuccess("Riwayat aktivitas berhasil dihapus.");
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
   function handleEdit(group: DateGroup) {
     const items: DraftItem[] = group.entries
       .filter((e) => e.status === "DITOLAK_SPV")
@@ -537,6 +567,9 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
         const totalPoints = isShowPoints
           ? entries.reduce((s, e) => s + Number(e.totalPoints), 0)
           : 0;
+        const deletableEntryIds = entries
+          .filter((entry) => ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status))
+          .map((entry) => entry.id);
         return {
           workDate,
           entries,
@@ -545,6 +578,8 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
           statusLabel: STATUS_TEXT[statusType],
           statusType,
           canEdit: statusType === "rejected",
+          canDelete: deletableEntryIds.length === entries.length && entries.length > 0,
+          deletableEntryIds,
         };
       });
   }, [activities]);
@@ -907,6 +942,9 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Status
                     </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -946,6 +984,23 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                             </Button>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {group.canDelete ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={pending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteHistoryGroup(group);
+                            }}
+                          >
+                            Hapus
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}

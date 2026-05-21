@@ -75,7 +75,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Ticketing",
     href: "/tickets",
     icon: Ticket,
-    roles: ["SUPER_ADMIN", "KABAG", "SPV", "TEAMWORK", "MANAGERIAL", "PAYROLL_VIEWER"],
+    roles: ["KABAG", "SPV", "TEAMWORK", "MANAGERIAL", "PAYROLL_VIEWER"],
     group: "main",
   },
   {

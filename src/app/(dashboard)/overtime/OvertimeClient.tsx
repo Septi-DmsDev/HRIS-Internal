@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  deleteOvertimeRequest,
   decideOvertimeRequest,
   getEmployeeShiftForDate,
   getMyShiftForDate,
@@ -241,6 +242,25 @@ export default function OvertimeClient({
         return;
       }
       setSuccess(action === "APPROVE" ? "Pengajuan overtime disetujui." : "Pengajuan overtime ditolak.");
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleDeleteRequest(requestId: string) {
+    const ok = window.confirm("Hapus pengajuan overtime ini? Data yang dihapus tidak bisa dikembalikan.");
+    if (!ok) return;
+    setPending(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await deleteOvertimeRequest({ requestId });
+      if (result && "error" in result) {
+        setError(result.error ?? "Hapus pengajuan overtime gagal.");
+        return;
+      }
+      setSuccess("Pengajuan overtime berhasil dihapus.");
       router.refresh();
     } finally {
       setPending(false);
@@ -564,14 +584,14 @@ export default function OvertimeClient({
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Poin</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Catatan</th>
-              {canSubmit ? (
+              {canSubmit || canApprove || canMonitor ? (
                 <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Aksi</th>
               ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(canSubmit ? myRequests : processedRequests).length === 0 ? (
-              <tr><td colSpan={canSubmit ? 8 : 7} className="px-3 py-8 text-center text-sm text-slate-500">Belum ada data overtime.</td></tr>
+              <tr><td colSpan={canSubmit || canApprove || canMonitor ? 8 : 7} className="px-3 py-8 text-center text-sm text-slate-500">Belum ada data overtime.</td></tr>
             ) : (canSubmit ? myRequests : processedRequests).map((row) => (
               <tr
                 key={row.id}
@@ -599,15 +619,26 @@ export default function OvertimeClient({
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600">{row.reviewNotes ?? "-"}</td>
-                {canSubmit ? (
+                {canSubmit || canApprove || canMonitor ? (
                   <td className="px-3 py-2 text-right">
-                    {row.status === "APPROVED" ? (
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openFillDraft(row); }}>
-                        Isi Draft
+                    <div className="flex items-center justify-end gap-2">
+                      {canSubmit && row.status === "APPROVED" ? (
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openFillDraft(row); }}>
+                          Isi Draft
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteRequest(row.id);
+                        }}
+                        disabled={pending}
+                      >
+                        Hapus
                       </Button>
-                    ) : (
-                      <span className="text-xs text-slate-400">-</span>
-                    )}
+                    </div>
                   </td>
                 ) : null}
               </tr>

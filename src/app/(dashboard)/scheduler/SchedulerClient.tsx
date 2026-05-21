@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
@@ -152,6 +152,7 @@ export default function SchedulerClient({
   const [positionFilter, setPositionFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Record<string, boolean>>({});
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
   const [matrixStartDate, setMatrixStartDate] = useState(periodStart);
   const [matrixEndDate, setMatrixEndDate] = useState(periodEnd);
   const [matrixDate, setMatrixDate] = useState(periodStart);
@@ -219,11 +220,39 @@ export default function SchedulerClient({
     [branchFilter, divisionFilter, groupFilter, positionFilter, teamMembers]
   );
 
+  const filteredEmployeeIds = useMemo(
+    () => filteredTeamMembers.map((member) => member.employeeId),
+    [filteredTeamMembers]
+  );
+
+  const allFilteredSelected =
+    filteredEmployeeIds.length > 0 &&
+    filteredEmployeeIds.every((employeeId) => Boolean(selectedEmployeeIds[employeeId]));
+  const someFilteredSelected =
+    filteredEmployeeIds.some((employeeId) => Boolean(selectedEmployeeIds[employeeId])) &&
+    !allFilteredSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected;
+    }
+  }, [someFilteredSelected]);
+
   function resetFilters() {
     setBranchFilter("");
     setDivisionFilter("");
     setPositionFilter("");
     setGroupFilter("");
+  }
+
+  function toggleSelectAllFiltered(nextChecked: boolean) {
+    setSelectedEmployeeIds((prev) => {
+      const next = { ...prev };
+      for (const employeeId of filteredEmployeeIds) {
+        next[employeeId] = nextChecked;
+      }
+      return next;
+    });
   }
 
   const periodDates = useMemo(() => {
@@ -641,7 +670,17 @@ export default function SchedulerClient({
                 <table className="min-w-max text-xs">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="sticky left-0 z-10 border-b border-r bg-slate-50 px-2 py-2 text-left">Karyawan</th>
+                      <th className="sticky left-0 z-10 border-b border-r bg-slate-50 px-2 py-2 text-left">
+                        <label className="flex items-center gap-2">
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            checked={allFilteredSelected}
+                            onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
+                          />
+                          <span>Karyawan</span>
+                        </label>
+                      </th>
                       {periodDates.map((dateKey) => (
                         <th key={dateKey} className="border-b border-r px-2 py-2 text-center">
                           {dateKey.slice(8, 10)}
@@ -1038,4 +1077,3 @@ export default function SchedulerClient({
     </>
   );
 }
-

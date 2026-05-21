@@ -19,6 +19,8 @@ const TICKET_READ_ROLES: UserRole[] = ["SUPER_ADMIN", "KABAG", "SPV", "TEAMWORK"
 const DIV_SCOPED_ROLES: UserRole[] = ["SPV", "KABAG"];
 const SPV_REVIEW_SUBMITTER_ROLES: UserRole[] = ["TEAMWORK"];
 const DIRECT_HRD_SUBMITTER_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KABAG", "MANAGERIAL", "FINANCE", "PAYROLL_VIEWER"];
+let ticketStatusEnumValuesPromise: Promise<Set<string>> | null = null;
+let ticketAuditActionEnumValuesPromise: Promise<Set<string>> | null = null;
 
 function diffDays(start: Date, end: Date) {
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
@@ -44,6 +46,78 @@ function hasAllowedAttachmentExtension(url: string) {
   return [".jpg", ".jpeg", ".png", ".pdf"].some((ext) => clean.endsWith(ext));
 }
 
+async function getTicketStatusEnumValues() {
+  if (!ticketStatusEnumValuesPromise) {
+    ticketStatusEnumValuesPromise = db
+      .execute(
+        sql<{ enumlabel: string }>`
+          select enumlabel
+          from pg_enum e
+          join pg_type t on t.oid = e.enumtypid
+          where t.typname = 'ticket_status'
+        `
+      )
+      .then((rows) =>
+        new Set<string>(
+          rows
+            .map((row) => {
+              const value = (row as { enumlabel?: unknown }).enumlabel;
+              return typeof value === "string" ? value : null;
+            })
+            .filter((value): value is string => value !== null)
+        )
+      )
+      .catch(() => new Set<string>());
+  }
+  return ticketStatusEnumValuesPromise;
+}
+
+async function resolveQueryTicketStatuses(preferred: readonly string[], fallback: readonly string[]) {
+  const supported = await getTicketStatusEnumValues();
+  const preferredStatuses = preferred.filter((status) => supported.has(status));
+  if (preferredStatuses.length > 0) return preferredStatuses;
+
+  const fallbackStatuses = fallback.filter((status) => supported.has(status));
+  if (fallbackStatuses.length > 0) return fallbackStatuses;
+
+  return [...fallback];
+}
+
+async function getTicketAuditActionEnumValues() {
+  if (!ticketAuditActionEnumValuesPromise) {
+    ticketAuditActionEnumValuesPromise = db
+      .execute(
+        sql<{ enumlabel: string }>`
+          select enumlabel
+          from pg_enum e
+          join pg_type t on t.oid = e.enumtypid
+          where t.typname = 'attendance_ticket_audit_action'
+        `
+      )
+      .then((rows) =>
+        new Set<string>(
+          rows
+            .map((row) => {
+              const value = (row as { enumlabel?: unknown }).enumlabel;
+              return typeof value === "string" ? value : null;
+            })
+            .filter((value): value is string => value !== null)
+        )
+      )
+      .catch(() => new Set<string>());
+  }
+  return ticketAuditActionEnumValuesPromise;
+}
+
+async function resolveRejectAuditAction(role: UserRole) {
+  const supportedActions = await getTicketAuditActionEnumValues();
+  const preferred = DIV_SCOPED_ROLES.includes(role) ? "REJECT_SPV" : "REJECT_HRD";
+  if (supportedActions.has(preferred)) return preferred as "REJECT_SPV" | "REJECT_HRD";
+  if (supportedActions.has("REJECT_HRD")) return "REJECT_HRD" as const;
+  if (supportedActions.has("REJECT_SPV")) return "REJECT_SPV" as const;
+  return null;
+}
+
 async function getEmployeeLeaveQuota(employeeId: string, year: number) {
   const [quota] = await db
     .select()
@@ -53,6 +127,96 @@ async function getEmployeeLeaveQuota(employeeId: string, year: number) {
   return quota ?? null;
 }
 
+async function countApprovedLeaveUsage(employeeId: string, year: number, referenceDate: Date) {
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year, 11, 31));
+  const monthlyCycle = getLeaveMonthlyCycleRange(referenceDate);
+
+  const [annualRow] = await db
+    .select({ cnt: sql<number>`count(*)` })
+    .from(attendanceTickets)
+    .where(
+      and(
+        eq(attendanceTickets.employeeId, employeeId),
+        eq(attendanceTickets.ticketType, "CUTI_TAHUNAN"),
+        gte(attendanceTickets.startDate, yearStart),
+        lte(attendanceTickets.startDate, yearEnd),
+        inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"] as const)
+      )
+    );
+
+  const [monthlyRow] = await db
+    .select({ cnt: sql<number>`count(*)` })
+    .from(attendanceTickets)
+    .where(
+      and(
+        eq(attendanceTickets.employeeId, employeeId),
+        eq(attendanceTickets.ticketType, "CUTI_BULANAN"),
+        gte(attendanceTickets.startDate, monthlyCycle.start),
+        lte(attendanceTickets.startDate, monthlyCycle.end),
+        inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"] as const)
+      )
+    );
+
+  const [eventRow] = await db
+    .select({ cnt: sql<number>`count(*)` })
+    .from(attendanceTickets)
+    .where(
+      and(
+        eq(attendanceTickets.employeeId, employeeId),
+        eq(attendanceTickets.ticketType, "IZIN_ACARA"),
+        gte(attendanceTickets.startDate, yearStart),
+        lte(attendanceTickets.startDate, yearEnd),
+        inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"] as const)
+      )
+    );
+
+  return {
+    annualUsed: Number(annualRow?.cnt ?? 0),
+    monthlyUsed: Number(monthlyRow?.cnt ?? 0),
+    eventUsed: Number(eventRow?.cnt ?? 0),
+  };
+}
+
+async function ensureLeaveQuotaForYear(employeeId: string, year: number, referenceDate: Date) {
+  const usage = await countApprovedLeaveUsage(employeeId, year, referenceDate);
+  const existing = await getEmployeeLeaveQuota(employeeId, year);
+
+  if (existing) {
+    const [updated] = await db
+      .update(leaveQuotas)
+      .set({
+        monthlyQuotaTotal: 1,
+        monthlyQuotaUsed: usage.monthlyUsed,
+        annualQuotaTotal: 3,
+        annualQuotaUsed: usage.annualUsed,
+        eventQuotaTotal: 3,
+        eventQuotaUsed: usage.eventUsed,
+        updatedAt: new Date(),
+      })
+      .where(eq(leaveQuotas.id, existing.id))
+      .returning();
+    return updated ?? existing;
+  }
+
+  const [inserted] = await db
+    .insert(leaveQuotas)
+    .values({
+      employeeId,
+      year,
+      monthlyQuotaTotal: 1,
+      monthlyQuotaUsed: usage.monthlyUsed,
+      annualQuotaTotal: 3,
+      annualQuotaUsed: usage.annualUsed,
+      eventQuotaTotal: 3,
+      eventQuotaUsed: usage.eventUsed,
+      notes: "Auto-generated by ticketing leave policy.",
+    })
+    .returning();
+
+  return inserted;
+}
+
 async function getEmployeeStartDate(employeeId: string) {
   const [emp] = await db
     .select({ startDate: employees.startDate })
@@ -60,6 +224,19 @@ async function getEmployeeStartDate(employeeId: string) {
     .where(eq(employees.id, employeeId))
     .limit(1);
   return emp?.startDate ?? null;
+}
+
+async function getEmployeeTenureAnchorDate(employeeId: string) {
+  const [emp] = await db
+    .select({
+      startDate: employees.startDate,
+      trainingGraduationDate: employees.trainingGraduationDate,
+    })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+  if (!emp) return null;
+  return emp.trainingGraduationDate ?? emp.startDate ?? null;
 }
 
 async function getEmployeeDivisionId(employeeId: string) {
@@ -245,6 +422,10 @@ export async function createTicket(input: unknown) {
   }
 
   if (ticketType === "SAKIT") {
+    const sickDuplicateStatuses = await resolveQueryTicketStatuses(
+      ["SUBMITTED", "NEED_REVIEW", "APPROVED_SPV", "APPROVED_HRD", "LOCKED"],
+      ["SUBMITTED", "APPROVED_SPV", "APPROVED_HRD", "LOCKED"]
+    );
     const monthStart = normalizeToStartOfMonth(startDate);
     const nextMonthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1));
     const [existingSickInMonth] = await db
@@ -256,7 +437,7 @@ export async function createTicket(input: unknown) {
           eq(attendanceTickets.ticketType, "SAKIT"),
           sql`${attendanceTickets.startDate} >= ${monthStart}::date`,
           sql`${attendanceTickets.startDate} < ${nextMonthStart}::date`,
-          inArray(attendanceTickets.status, ["SUBMITTED", "NEED_REVIEW", "APPROVED_SPV", "APPROVED_HRD", "LOCKED"] as const)
+          inArray(attendanceTickets.status, sickDuplicateStatuses as Array<"SUBMITTED" | "NEED_REVIEW" | "APPROVED_SPV" | "APPROVED_HRD" | "LOCKED">)
         )
       )
       .limit(1);
@@ -268,11 +449,11 @@ export async function createTicket(input: unknown) {
 
   if (["CUTI_TAHUNAN", "CUTI_BULANAN", "IZIN_ACARA"].includes(ticketType)) {
     const year = startDate.getUTCFullYear();
-    const employeeStartDate = await getEmployeeStartDate(employeeId);
-    if (!employeeStartDate) return { error: "Tanggal mulai kerja karyawan tidak ditemukan." };
+    const employeeTenureAnchorDate = await getEmployeeTenureAnchorDate(employeeId);
+    if (!employeeTenureAnchorDate) return { error: "Tanggal acuan masa kerja karyawan tidak ditemukan." };
 
     const eligible = resolveLeaveQuotaEligibility({
-      startDate: employeeStartDate,
+      startDate: employeeTenureAnchorDate,
       requestedYear: year,
       today: startDate,
     }).eligible;
@@ -280,10 +461,7 @@ export async function createTicket(input: unknown) {
       return { error: "Masa kerja minimal 1 tahun belum terpenuhi untuk jenis pengajuan ini." };
     }
 
-    const quota = await getEmployeeLeaveQuota(employeeId, year);
-    if (!quota) {
-      return { error: `Kuota cuti tahun ${year} belum tersedia. Hubungi HRD untuk generate kuota.` };
-    }
+    const quota = await ensureLeaveQuotaForYear(employeeId, year, startDate);
 
     if (ticketType === "CUTI_TAHUNAN" && quota.annualQuotaUsed >= quota.annualQuotaTotal) {
       return { error: "Kuota CUTI_TAHUNAN sudah habis." };
@@ -469,17 +647,17 @@ export async function approveTicket(input: unknown) {
 
     if (!parsed.data.payrollImpact && !["SETENGAH_HARI", "IZIN_JAM", "RESIGN"].includes(ticket.ticketType)) {
       const year = new Date(ticket.startDate).getFullYear();
-      const employeeStartDate = await getEmployeeStartDate(ticket.employeeId);
-      const eligible = employeeStartDate
+      const employeeTenureAnchorDate = await getEmployeeTenureAnchorDate(ticket.employeeId);
+      const eligible = employeeTenureAnchorDate
         ? resolveLeaveQuotaEligibility({
-            startDate: employeeStartDate,
+            startDate: employeeTenureAnchorDate,
             requestedYear: year,
             today: ticket.startDate,
           }).eligible
         : false;
 
       if (eligible) {
-        const quota = await getEmployeeLeaveQuota(ticket.employeeId, year);
+        const quota = await ensureLeaveQuotaForYear(ticket.employeeId, year, ticket.startDate);
         if (quota) {
           if (ticket.ticketType === "CUTI_BULANAN") {
             payrollImpact = "PAID_QUOTA_MONTHLY";
@@ -579,6 +757,7 @@ export async function rejectTicket(input: unknown) {
   if (!parsed.data.rejectionReason?.trim()) {
     return { error: "Alasan penolakan wajib diisi." };
   }
+  const rejectionReason = parsed.data.rejectionReason.trim();
 
   const user = await getUser();
   const roleRow = await getCurrentUserRoleRow();
@@ -629,34 +808,50 @@ export async function rejectTicket(input: unknown) {
     }
   }
 
-  await db
-    .update(attendanceTickets)
-    .set({
-      status: "REJECTED",
-      rejectionReason: parsed.data.rejectionReason,
-      rejectedByUserId: user?.id ?? null,
-      rejectedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(attendanceTickets.id, parsed.data.ticketId));
+  const reviewNotes = parsed.data.notes?.trim() || null;
+  const rejectAuditAction = await resolveRejectAuditAction(role);
+  let auditSkipped = false;
 
-  await db.insert(attendanceTicketAuditLogs).values({
-    ticketId: ticket.id,
-    employeeId: ticket.employeeId,
-    action: DIV_SCOPED_ROLES.includes(role) ? "REJECT_SPV" : "REJECT_HRD",
-    actorUserId: user?.id ?? roleRow.userId,
-    actorRole: role,
-    notes: parsed.data.notes ?? null,
-    payload: {
-      fromStatus: ticket.status,
-      toStatus: "REJECTED",
-      rejectionReason: parsed.data.rejectionReason,
-    },
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(attendanceTickets)
+        .set({
+          status: "REJECTED",
+          rejectionReason,
+          rejectedByUserId: user?.id ?? null,
+          rejectedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(attendanceTickets.id, parsed.data.ticketId));
+
+      if (rejectAuditAction) {
+        await tx.insert(attendanceTicketAuditLogs).values({
+          ticketId: ticket.id,
+          employeeId: ticket.employeeId,
+          action: rejectAuditAction,
+          actorUserId: user?.id ?? roleRow.userId,
+          actorRole: role,
+          notes: reviewNotes,
+          payload: {
+            fromStatus: ticket.status,
+            toStatus: "REJECTED",
+            rejectionReason,
+          },
+        });
+      } else {
+        auditSkipped = true;
+      }
+    });
+  } catch {
+    return { error: "Gagal menyimpan audit penolakan tiket. Silakan coba lagi." };
+  }
 
   revalidatePath("/tickets");
   revalidatePath("/ticketingapproval");
-  return { success: true };
+  return auditSkipped
+    ? { success: true, warning: "Tiket berhasil ditolak, tetapi audit log belum tersimpan karena konfigurasi audit belum valid." }
+    : { success: true };
 }
 
 export async function cancelTicket(ticketId: string) {
@@ -809,13 +1004,13 @@ export async function generateLeaveQuota(employeeId: string, year: number) {
   const authError = await checkRole(["SUPER_ADMIN", "HRD"]);
   if (authError) return authError;
 
-  const employeeStartDate = await getEmployeeStartDate(employeeId);
-  if (!employeeStartDate) {
-    return { error: "Tanggal mulai kerja karyawan tidak ditemukan." };
+  const employeeTenureAnchorDate = await getEmployeeTenureAnchorDate(employeeId);
+  if (!employeeTenureAnchorDate) {
+    return { error: "Tanggal acuan masa kerja karyawan tidak ditemukan." };
   }
 
   const eligibility = resolveLeaveQuotaEligibility({
-    startDate: employeeStartDate,
+    startDate: employeeTenureAnchorDate,
     requestedYear: year,
   });
   if (!eligibility.eligible) {
