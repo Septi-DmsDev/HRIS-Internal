@@ -84,3 +84,7 @@ export type MonthlyPerformanceGenerationInput = z.infer<typeof monthlyPerformanc
 export type ManagerialMonthlyPerformanceInput = z.infer<typeof managerialMonthlyPerformanceInputSchema>;
 export type EmployeeMonthlyPerformanceInput = z.infer<typeof employeeMonthlyPerformanceInputSchema>;
 export type BatchSubmitDraftInput = z.infer<typeof batchSubmitDraftSchema>;
+
+// Schema untuk menambah job ID ke draft yang sudah pending (tanpa hapus entri existing)
+export const appendToPendingDraftSchema = batchSubmitDraftSchema;
+export type AppendToPendingDraftInput = z.infer<typeof appendToPendingDraftSchema>;

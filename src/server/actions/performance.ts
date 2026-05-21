@@ -31,6 +31,7 @@ import {
   type EmployeeGroup,
 } from "@/lib/employee-groups";
 import {
+  appendToPendingDraftSchema,
   batchSubmitDraftSchema,
   dailyActivityDecisionSchema,
   dailyActivityEntrySchema,
@@ -1471,6 +1472,135 @@ export async function batchSubmitDraft(input: unknown) {
       await tx.insert(dailyActivityApprovalLogs).values({
         activityEntryId: insertedId,
         action: logAction,
+        actorUserId: user?.id ?? roleRow.employeeId!,
+        actorRole: roleRow.role as UserRole,
+      });
+    }
+  });
+
+  revalidatePath("/performance");
+  return { success: true };
+}
+
+/**
+ * Menambahkan job ID baru ke draft yang sudah dalam status DIAJUKAN/DIAJUKAN_ULANG.
+ * Tidak menghapus entri existing — hanya INSERT entri baru di samping yang sudah ada.
+ * Digunakan ketika tim ingin melengkapi job ID yang ketinggalan setelah submit.
+ */
+export async function appendToPendingDraft(input: unknown) {
+  const authError = await checkRole(PERFORMANCE_SELF_SERVICE_ROLES);
+  if (authError) return { error: authError.error ?? "Akses ditolak." };
+
+  const parsed = appendToPendingDraftSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Input tidak valid." };
+
+  const user = await getUser();
+  const roleRow = await getCurrentUserRoleRow();
+  if (!roleRow.employeeId) return { error: "Akun belum terhubung ke data karyawan." };
+
+  const [emp] = await db
+    .select({ divisionId: employees.divisionId })
+    .from(employees)
+    .where(eq(employees.id, roleRow.employeeId))
+    .limit(1);
+  if (!emp?.divisionId) return { error: "Data divisi karyawan tidak ditemukan." };
+
+  const activeVersion = await getActivePointCatalogVersion();
+  if (!activeVersion) return { error: "Belum ada versi katalog poin aktif." };
+  const hasSnapshotColumn = await hasJobIdSnapshotColumn();
+
+  const catalogIds = [...new Set(parsed.data.items.map((i) => i.pointCatalogEntryId))];
+  const catalogRows = await db
+    .select()
+    .from(pointCatalogEntries)
+    .where(
+      and(
+        inArray(pointCatalogEntries.id, catalogIds),
+        eq(pointCatalogEntries.versionId, activeVersion.id),
+        eq(pointCatalogEntries.isActive, true)
+      )
+    );
+  if (catalogRows.length !== catalogIds.length) {
+    return { error: "Salah satu katalog pekerjaan tidak valid atau tidak aktif." };
+  }
+  const catalogMap = new Map(catalogRows.map((r) => [r.id, r]));
+
+  const existing = await db
+    .select({ id: dailyActivityEntries.id, status: dailyActivityEntries.status })
+    .from(dailyActivityEntries)
+    .where(
+      and(
+        eq(dailyActivityEntries.employeeId, roleRow.employeeId),
+        eq(dailyActivityEntries.workDate, parsed.data.workDate)
+      )
+    );
+
+  // Harus ada entri pending supaya append valid
+  const hasPending = existing.some((e) => ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(e.status));
+  if (!hasPending) {
+    return { error: "Tidak ada draft pending untuk tanggal ini. Gunakan Submit Draft biasa." };
+  }
+
+  // Status entri baru mengikuti status dominan yang sudah ada
+  const hasResubmit = existing.some((e) => e.status === "DIAJUKAN_ULANG");
+  const nextStatus = hasResubmit ? "DIAJUKAN_ULANG" : "DIAJUKAN";
+
+  await db.transaction(async (tx) => {
+    for (const item of parsed.data.items) {
+      const entry = catalogMap.get(item.pointCatalogEntryId)!;
+      const pointValue = toNumber(entry.pointValue);
+      const totalPoints = Number((pointValue * item.quantity).toFixed(2));
+      const snapshotValue = item.jobId ?? entry.externalCode ?? null;
+      let insertedId: string;
+      if (hasSnapshotColumn) {
+        const [inserted] = await tx
+          .insert(dailyActivityEntries)
+          .values({
+            employeeId: roleRow.employeeId!,
+            workDate: parsed.data.workDate,
+            actualDivisionId: emp.divisionId!,
+            pointCatalogEntryId: entry.id,
+            pointCatalogVersionId: activeVersion.id,
+            pointCatalogDivisionName: entry.divisionName,
+            jobIdSnapshot: snapshotValue,
+            workNameSnapshot: entry.workName,
+            unitDescriptionSnapshot: entry.unitDescription,
+            pointValueSnapshot: pointValue.toFixed(2),
+            quantity: item.quantity.toFixed(2),
+            totalPoints: totalPoints.toFixed(2),
+            status: nextStatus,
+            submittedAt: new Date(),
+            createdByUserId: user?.id ?? roleRow.employeeId!,
+          })
+          .returning({ id: dailyActivityEntries.id });
+        insertedId = inserted.id;
+      } else {
+        const [inserted] = await tx
+          .insert(dailyActivityEntriesLegacy)
+          .values({
+            employeeId: roleRow.employeeId!,
+            workDate: parsed.data.workDate,
+            actualDivisionId: emp.divisionId!,
+            pointCatalogEntryId: entry.id,
+            pointCatalogVersionId: activeVersion.id,
+            pointCatalogDivisionName: entry.divisionName,
+            workNameSnapshot: entry.workName,
+            unitDescriptionSnapshot: entry.unitDescription,
+            pointValueSnapshot: pointValue.toFixed(2),
+            quantity: item.quantity.toFixed(2),
+            totalPoints: totalPoints.toFixed(2),
+            status: nextStatus,
+            submittedAt: new Date(),
+            createdByUserId: user?.id ?? roleRow.employeeId!,
+            notes: encodeLegacyNotes(snapshotValue),
+          })
+          .returning({ id: dailyActivityEntriesLegacy.id });
+        insertedId = inserted.id;
+      }
+
+      await tx.insert(dailyActivityApprovalLogs).values({
+        activityEntryId: insertedId,
+        action: "SUBMIT",
         actorUserId: user?.id ?? roleRow.employeeId!,
         actorRole: roleRow.role as UserRole,
       });

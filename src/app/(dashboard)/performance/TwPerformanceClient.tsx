@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Camera, ChevronDown, ScanSearch, Trash2 } from "lucide-react";
-import { batchSubmitDraft, deleteActivityEntry } from "@/server/actions/performance";
+import { appendToPendingDraft, batchSubmitDraft, deleteActivityEntry } from "@/server/actions/performance";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
 import { formatPointNumber } from "@/lib/format/number";
 import type { TwCatalogEntry, TwActivityItem } from "@/server/actions/performance";
@@ -49,6 +49,7 @@ type DateGroup = {
   statusType: "pending" | "approved" | "rejected" | "locked";
   canEdit: boolean;
   canDelete: boolean;
+  canAddTo: boolean;
   deletableEntryIds: string[];
 };
 
@@ -201,6 +202,8 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [historyDetail, setHistoryDetail] = useState<DateGroup | null>(null);
+  // Mode tambah ke draft pending
+  const [appendingDate, setAppendingDate] = useState<string | null>(null);
   const [openOcrModal, setOpenOcrModal] = useState(false);
   const [ocrPending, setOcrPending] = useState(false);
   const [ocrText, setOcrText] = useState("");
@@ -341,14 +344,17 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
     setPending(true);
     setError(null);
     try {
-      const result = await batchSubmitDraft({
+      const payload = {
         workDate: selectedDate,
         items: draftItems.map((i) => ({
           pointCatalogEntryId: i.catalogEntryId,
           jobId: i.jobId,
           quantity: i.qty,
         })),
-      });
+      };
+      const result = appendingDate
+        ? await appendToPendingDraft(payload)
+        : await batchSubmitDraft(payload);
       if (result && "error" in result && result.error) {
         setError(result.error);
         return;
@@ -358,7 +364,12 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
       setCurrentJobId("");
       setCurrentJobLines([]);
       setEditingDate(null);
-      setSuccess("Draft berhasil dikirim ke HRD untuk review.");
+      setAppendingDate(null);
+      setSuccess(
+        appendingDate
+          ? "Job ID berhasil ditambahkan ke draft yang sedang direview HRD."
+          : "Draft berhasil dikirim ke HRD untuk review."
+      );
       setActiveTab("history");
       router.refresh();
     } finally {
@@ -416,6 +427,20 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
     setEditingDate(group.workDate);
     setError(null);
     setSuccess(null);
+    setActiveTab("submit");
+  }
+
+  function handleAddToPending(group: DateGroup) {
+    setSelectedDate(group.workDate);
+    setDraftItems([]);
+    setJobGroups([]);
+    setCurrentJobId("");
+    setCurrentJobLines([]);
+    setAppendingDate(group.workDate);
+    setEditingDate(null);
+    setError(null);
+    setSuccess(null);
+    setHistoryDetail(null);
     setActiveTab("submit");
   }
 
@@ -562,7 +587,9 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([workDate, entries]) => {
         const statusType = resolveGroupStatus(entries);
-        const totalJobs = new Set(entries.map((e) => e.pointCatalogEntryId)).size;
+        const totalJobs = new Set(
+          entries.map((e) => resolveActivityJobIdLabel(e.jobIdSnapshot, null, e.notes))
+        ).size;
         const isShowPoints = ["approved", "locked"].includes(statusType);
         const totalPoints = isShowPoints
           ? entries.reduce((s, e) => s + Number(e.totalPoints), 0)
@@ -578,6 +605,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
           statusLabel: STATUS_TEXT[statusType],
           statusType,
           canEdit: statusType === "rejected",
+          canAddTo: statusType === "pending",
           canDelete: deletableEntryIds.length === entries.length && entries.length > 0,
           deletableEntryIds,
         };
@@ -627,6 +655,27 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
             </div>
           )}
 
+          {appendingDate && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+              <strong>Tambah Job ID</strong> ke draft tanggal{" "}
+              <strong>{formatDate(appendingDate)}</strong> yang sedang direview HRD.
+              Job ID lama tidak akan terhapus — hanya job ID baru yang ditambahkan.{" "}
+              <button
+                type="button"
+                className="underline hover:no-underline"
+                onClick={() => {
+                  setAppendingDate(null);
+                  setDraftItems([]);
+                  setJobGroups([]);
+                  setCurrentJobId("");
+                  setCurrentJobLines([]);
+                }}
+              >
+                Batal
+              </button>
+            </div>
+          )}
+
           {success && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
               {success}
@@ -658,7 +707,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                     <Input
                       type="date"
                       value={selectedDate}
-                      onChange={(e) => { setSelectedDate(e.target.value); setEditingDate(null); }}
+                      onChange={(e) => { setSelectedDate(e.target.value); setEditingDate(null); setAppendingDate(null); }}
                       className="w-40 h-8 text-sm"
                     />
                   </div>
@@ -983,6 +1032,19 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                               Edit
                             </Button>
                           )}
+                          {group.canAddTo && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddToPending(group);
+                              }}
+                            >
+                              + Job ID
+                            </Button>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -1073,23 +1135,23 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
       </Dialog>
 
       <Dialog open={historyDetail !== null} onOpenChange={(open) => !open && setHistoryDetail(null)}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh]">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>
               Detail Draft - {historyDetail ? formatDate(historyDetail.workDate) : "-"}
             </DialogTitle>
           </DialogHeader>
 
           {historyDetail && (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-600">
+            <div className="flex flex-col gap-3 min-h-0 flex-1">
+              <p className="text-sm text-slate-600 flex-shrink-0">
                 Total job: <span className="font-semibold text-slate-900">{historyDetail.totalJobs}</span>
                 {" • "}
                 Status: <span className="font-semibold text-slate-900">{historyDetail.statusLabel}</span>
               </p>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
+              <div className="overflow-auto rounded-lg border border-slate-200 flex-1 min-h-0">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
+                  <thead className="border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Job ID</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis Pekerjaan</th>
@@ -1113,7 +1175,16 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0">
+            {historyDetail?.canAddTo && (
+              <Button
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => handleAddToPending(historyDetail)}
+              >
+                + Tambah Job ID
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setHistoryDetail(null)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
