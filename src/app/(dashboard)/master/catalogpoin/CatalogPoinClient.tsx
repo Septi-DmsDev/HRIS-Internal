@@ -217,58 +217,50 @@ export default function CatalogPoinClient({
       ) : null}
 
       <div className="space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-800">Entry Katalog Poin</h2>
-            <p className="text-sm text-slate-500">
-              {canManageCatalog
-                ? "Tambah, ubah, atau hapus entry katalog langsung dari platform, atau import via .xlsx."
-                : "Role ini hanya memiliki akses baca untuk katalog poin."}
-            </p>
-          </div>
-          {canManageCatalog ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                onClick={() => {
-                  resetMessages();
-                  setEntryDraft(createEntryDraft());
-                  setEntryOpen(true);
-                }}
-              >
-                + Tambah Entry
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  resetMessages();
-                  setXlsxFile(null);
-                  setXlsxOpen(true);
-                }}
-              >
-                Import .xlsx
-              </Button>
-              {role === "SUPER_ADMIN" ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    resetMessages();
-                    setClearCatalogOpen(true);
-                  }}
-                >
-                  Hapus Semua Katalog
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
         <DataTable
           data={entries}
           columns={entryColumns}
           searchKey="workName"
           searchPlaceholder="Cari nama pekerjaan..."
+          toolbarSlot={
+            canManageCatalog ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    resetMessages();
+                    setEntryDraft(createEntryDraft());
+                    setEntryOpen(true);
+                  }}
+                >
+                  + Tambah Entry
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    resetMessages();
+                    setXlsxFile(null);
+                    setXlsxOpen(true);
+                  }}
+                >
+                  Import .xlsx
+                </Button>
+                {role === "SUPER_ADMIN" ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      resetMessages();
+                      setClearCatalogOpen(true);
+                    }}
+                  >
+                    Hapus Semua Katalog
+                  </Button>
+                ) : null}
+              </div>
+            ) : undefined
+          }
         />
       </div>
 

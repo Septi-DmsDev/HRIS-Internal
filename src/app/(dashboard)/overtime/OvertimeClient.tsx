@@ -69,16 +69,16 @@ export type OvertimeCatalogEntry = {
 };
 
 const OVERTIME_TYPE_LABEL: Record<OvertimeRow["overtimeType"], string> = {
-  OVERTIME_1H: "Overtime 1 Jam",
-  OVERTIME_2H: "Overtime 2 Jam",
+  OVERTIME_1H: "Overtime 1 Jam (nonaktif)",
+  OVERTIME_2H: "Overtime 2 Jam (nonaktif)",
   OVERTIME_3H: "Overtime 3 Jam",
   LEMBUR_FULLDAY: "Lembur 1 Hari",
   PATCH_ABSENCE_3H: "Penambalan Izin (3 Jam)",
 };
 
 const OVERTIME_HELP_TEXT: Record<OvertimeRow["overtimeType"], string> = {
-  OVERTIME_1H: "Rp11.000 (tanpa uang makan)",
-  OVERTIME_2H: "Rp22.000 (tanpa uang makan)",
+  OVERTIME_1H: "Tidak tersedia untuk pengajuan baru",
+  OVERTIME_2H: "Tidak tersedia untuk pengajuan baru",
   OVERTIME_3H: "Rp33.000 + uang makan Rp10.000",
   LEMBUR_FULLDAY: "Rp100.000 + uang makan Rp20.000",
   PATCH_ABSENCE_3H: "Rp11.000 + uang makan Rp30.000, maksimal 3x/periode (IZIN/SAKIT/CUTI approved)",
@@ -120,7 +120,7 @@ export default function OvertimeClient({
 }) {
   const router = useRouter();
   const [requestDate, setRequestDate] = useState(new Date().toISOString().slice(0, 10));
-  const [overtimeType, setOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_1H");
+  const [overtimeType, setOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_3H");
   const [overtimePlacement, setOvertimePlacement] = useState<OvertimeRow["overtimePlacement"]>("AFTER_SHIFT");
   const [reason, setReason] = useState("");
   const [openTwSubmit, setOpenTwSubmit] = useState(false);
@@ -155,12 +155,12 @@ export default function OvertimeClient({
   const [openSpvSubmit, setOpenSpvSubmit] = useState(false);
   const [openSpvSchedule, setOpenSpvSchedule] = useState(false);
   const [spvRequestDate, setSpvRequestDate] = useState(new Date().toISOString().slice(0, 10));
-  const [spvOvertimeType, setSpvOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_1H");
+  const [spvOvertimeType, setSpvOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_3H");
   const [spvOvertimePlacement, setSpvOvertimePlacement] = useState<OvertimeRow["overtimePlacement"]>("AFTER_SHIFT");
   const [spvReason, setSpvReason] = useState("");
   const [targetEmployeeId, setTargetEmployeeId] = useState("");
   const [scheduleRequestDate, setScheduleRequestDate] = useState(new Date().toISOString().slice(0, 10));
-  const [scheduleOvertimeType, setScheduleOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_1H");
+  const [scheduleOvertimeType, setScheduleOvertimeType] = useState<OvertimeRow["overtimeType"]>("OVERTIME_3H");
   const [scheduleOvertimePlacement, setScheduleOvertimePlacement] = useState<OvertimeRow["overtimePlacement"]>("AFTER_SHIFT");
   const [scheduleReason, setScheduleReason] = useState("");
   const [myShiftInfo, setMyShiftInfo] = useState<{ startTime: string; endTime: string } | null | "loading">(null);
@@ -646,7 +646,7 @@ export default function OvertimeClient({
                   className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   {Object.entries(OVERTIME_TYPE_LABEL)
-                    .filter(([key]) => !isManagerial || key !== "PATCH_ABSENCE_3H")
+                    .filter(([key]) => key !== "OVERTIME_1H" && key !== "OVERTIME_2H" && (!isManagerial || key !== "PATCH_ABSENCE_3H"))
                     .map(([key, label]) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
@@ -923,7 +923,7 @@ export default function OvertimeClient({
                   }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  {Object.entries(OVERTIME_TYPE_LABEL).filter(([key]) => key !== "PATCH_ABSENCE_3H").map(([key, label]) => (
+                  {Object.entries(OVERTIME_TYPE_LABEL).filter(([key]) => key !== "OVERTIME_1H" && key !== "OVERTIME_2H" && key !== "PATCH_ABSENCE_3H").map(([key, label]) => (
                     <option key={key} value={key}>{label}</option>
                   ))}
                 </select>

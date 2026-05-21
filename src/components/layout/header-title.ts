@@ -27,7 +27,6 @@ export function resolveHeaderMeta(pathname: string) {
   if (pathname.startsWith("/master/divisions")) return { title: "Master Divisi", description: "Daftar divisi aktif" };
   if (pathname.startsWith("/master/positions")) return { title: "Master Jabatan", description: "Daftar jabatan kerja" };
   if (pathname.startsWith("/master/grades")) return { title: "Master Grade", description: "Daftar grade karyawan" };
-  if (pathname.startsWith("/master/work-schedules")) return { title: "Jadwal Kerja", description: "Pengaturan jadwal dan shift" };
   if (pathname.startsWith("/master/catalogpoin")) return { title: "Katalog Poin", description: "Manajemen katalog poin performa" };
   if (pathname.startsWith("/master/")) return { title: "Master Data", description: "Pengaturan data referensi" };
   if (pathname.startsWith("/users")) return { title: "Manajemen Pengguna", description: "Role dan akses akun" };

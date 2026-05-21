@@ -43,7 +43,7 @@ import {
   submitDailyActivityEntry,
 } from "@/server/actions/performance";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
-import { formatOneDecimal } from "@/lib/format/number";
+import { formatOneDecimal, formatPointNumber } from "@/lib/format/number";
 import type { UserRole } from "@/types";
 
 export type PerformanceVersionRow = {
@@ -831,7 +831,7 @@ export default function PerformanceCatalogClient({
         header: "Poin",
         accessorKey: "pointValue",
         cell: ({ row }) => (
-          <span className="tabular-nums font-medium">{formatOneDecimal(row.original.pointValue)}</span>
+          <span className="tabular-nums font-medium">{formatPointNumber(row.original.pointValue)}</span>
         ),
       },
       { header: "Keterangan", accessorKey: "unitDescription" },
@@ -906,7 +906,7 @@ export default function PerformanceCatalogClient({
           <div className="space-y-0.5">
             <p className="text-slate-900">{row.original.workNameSnapshot}</p>
             <p className="text-xs text-slate-500">
-              {row.original.actualDivisionName} · {formatOneDecimal(row.original.pointValueSnapshot)} × {row.original.quantity}
+              {row.original.actualDivisionName} · {formatPointNumber(row.original.pointValueSnapshot)} × {row.original.quantity}
             </p>
           </div>
         ),
@@ -916,7 +916,7 @@ export default function PerformanceCatalogClient({
         accessorKey: "totalPoints",
         cell: ({ row }) => (
           <span className="font-medium">
-            {formatOneDecimal(row.original.totalPoints)}
+            {formatPointNumber(row.original.totalPoints)}
           </span>
         ),
       },
@@ -1079,7 +1079,7 @@ export default function PerformanceCatalogClient({
       {
         header: "Approved",
         accessorKey: "totalApprovedPoints",
-        cell: ({ row }) => formatOneDecimal(row.original.totalApprovedPoints),
+        cell: ({ row }) => formatPointNumber(row.original.totalApprovedPoints),
       },
       {
         header: "Performa",
@@ -1227,7 +1227,7 @@ export default function PerformanceCatalogClient({
                           </td>
                           <td className="px-3 py-2.5 text-slate-700">{group.workDate}</td>
                           <td className="px-3 py-2.5 text-center tabular-nums text-slate-700">{group.activities.length}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-900">{formatOneDecimal(group.totalPoints)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-900">{formatPointNumber(group.totalPoints)}</td>
                           <td className="px-3 py-2.5">
                             <Badge variant="secondary">
                               {group.status === "DIAJUKAN_ULANG" ? "Diajukan Ulang" : "Diajukan"}
@@ -1484,8 +1484,8 @@ export default function PerformanceCatalogClient({
                         </td>
                         <td className="px-3 py-2.5 text-slate-900">{activity.workNameSnapshot}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{activity.quantity}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatOneDecimal(activity.pointValueSnapshot)}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatOneDecimal(activity.totalPoints)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatPointNumber(activity.pointValueSnapshot)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatPointNumber(activity.totalPoints)}</td>
                       </tr>
                     ))}
                   </tbody>

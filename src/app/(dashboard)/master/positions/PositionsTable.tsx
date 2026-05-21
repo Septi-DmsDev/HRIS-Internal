@@ -164,23 +164,22 @@ export default function PositionsTable({ data }: PositionsTableProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={() => {
-            setFormError(null);
-            setCreateOpen(true);
-          }}
-        >
-          Tambah Jabatan
-        </Button>
-      </div>
-
       <DataTable
         data={data}
         columns={columns}
         searchKey="name"
         searchPlaceholder="Cari jabatan..."
+        toolbarSlot={
+          <Button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setCreateOpen(true);
+            }}
+          >
+            Tambah Jabatan
+          </Button>
+        }
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

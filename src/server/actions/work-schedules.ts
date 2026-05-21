@@ -82,7 +82,7 @@ export async function createWorkShiftMaster(input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   return { success: true };
 }
 
@@ -128,7 +128,7 @@ export async function updateWorkShiftMaster(id: string, input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   return { success: true };
 }
 
@@ -137,7 +137,7 @@ export async function deleteWorkShiftMaster(id: string) {
   if (authError) return authError;
 
   await db.delete(workShiftMasters).where(eq(workShiftMasters.id, id));
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   return { success: true };
 }
 
@@ -188,7 +188,7 @@ export async function createWorkSchedule(input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   revalidatePath("/employees");
   return { success: true };
 }
@@ -251,7 +251,7 @@ export async function updateWorkSchedule(id: string, input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   revalidatePath("/employees");
   return { success: true };
 }
@@ -270,7 +270,7 @@ export async function deleteWorkSchedule(id: string) {
     throw error;
   }
 
-  revalidatePath("/master/work-schedules");
+  revalidatePath("/master");
   revalidatePath("/employees");
   return { success: true };
 }

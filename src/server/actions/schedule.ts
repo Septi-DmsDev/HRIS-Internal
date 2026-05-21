@@ -82,6 +82,13 @@ export type ScheduleOption = {
   code: string;
 };
 
+export type ScheduleAssignmentRange = {
+  employeeId: string;
+  scheduleId: string;
+  effectiveStartDate: string;
+  effectiveEndDate: string | null;
+};
+
 
 export type HrdScheduleOverviewDayCount = {
   key: string;
@@ -190,7 +197,9 @@ function normalizeScheduleCode(code: string): string {
 function isSelectableShiftMaster(code: string, name: string): boolean {
   const normalizedCode = code.toUpperCase().trim();
   const normalizedName = name.toLowerCase().trim();
-  return !normalizedCode.includes("STATUS") && !normalizedName.includes("status");
+  if (normalizedCode.includes("STATUS") || normalizedName.includes("status")) return false;
+  if (normalizedCode === "LIBUR" || normalizedName === "libur") return false;
+  return true;
 }
 
 function buildDefaultScheduleDays(scheduleId: string, startTime: string, endTime: string) {
@@ -274,7 +283,7 @@ function resolvePayrollPeriodWindow(now: Date): { periodStart: Date; periodEnd: 
 async function replaceEmployeeScheduleRange(
   tx: ScheduleTransaction,
   employeeId: string,
-  scheduleId: string,
+  scheduleId: string | null,
   effectiveStartDate: Date,
   effectiveEndDate: Date,
   notes: string | null
@@ -343,13 +352,15 @@ async function replaceEmployeeScheduleRange(
     }
   }
 
-  await tx.insert(employeeScheduleAssignments).values({
-    employeeId,
-    scheduleId,
-    effectiveStartDate,
-    effectiveEndDate,
-    notes,
-  });
+  if (scheduleId !== null) {
+    await tx.insert(employeeScheduleAssignments).values({
+      employeeId,
+      scheduleId,
+      effectiveStartDate,
+      effectiveEndDate,
+      notes,
+    });
+  }
 }
 
 // â”€â”€â”€ getMySchedule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -997,6 +1008,9 @@ export async function getScheduleOptions(): Promise<ScheduleOption[]> {
 export async function getScheduleManagementWorkspace(): Promise<{
   teamMembers: TeamMember[];
   scheduleOptions: ScheduleOption[];
+  periodStart: string;
+  periodEnd: string;
+  assignmentRanges: ScheduleAssignmentRange[];
 }> {
   await requireAuth();
 
@@ -1005,7 +1019,46 @@ export async function getScheduleManagementWorkspace(): Promise<{
     getScheduleOptions(),
   ]);
 
-  return { teamMembers, scheduleOptions };
+  const { periodStart, periodEnd } = resolvePayrollPeriodWindow(new Date());
+  const employeeIds = teamMembers.map((member) => member.employeeId);
+  let assignmentRanges: ScheduleAssignmentRange[] = [];
+
+  if (employeeIds.length > 0) {
+    const ranges = await db
+      .select({
+        employeeId: employeeScheduleAssignments.employeeId,
+        scheduleId: employeeScheduleAssignments.scheduleId,
+        effectiveStartDate: employeeScheduleAssignments.effectiveStartDate,
+        effectiveEndDate: employeeScheduleAssignments.effectiveEndDate,
+      })
+      .from(employeeScheduleAssignments)
+      .where(
+        and(
+          inArray(employeeScheduleAssignments.employeeId, employeeIds),
+          lte(employeeScheduleAssignments.effectiveStartDate, periodEnd),
+          or(
+            isNull(employeeScheduleAssignments.effectiveEndDate),
+            gte(employeeScheduleAssignments.effectiveEndDate, periodStart)
+          )
+        )
+      )
+      .orderBy(asc(employeeScheduleAssignments.employeeId), asc(employeeScheduleAssignments.effectiveStartDate));
+
+    assignmentRanges = ranges.map((row) => ({
+      employeeId: row.employeeId,
+      scheduleId: row.scheduleId,
+      effectiveStartDate: toDateKey(row.effectiveStartDate),
+      effectiveEndDate: row.effectiveEndDate ? toDateKey(row.effectiveEndDate) : null,
+    }));
+  }
+
+  return {
+    teamMembers,
+    scheduleOptions,
+    periodStart: toDateKey(periodStart),
+    periodEnd: toDateKey(periodEnd),
+    assignmentRanges,
+  };
 }
 
 export async function getHrdScheduleOverview(): Promise<HrdScheduleOverview> {
@@ -1156,8 +1209,14 @@ export async function getHrdScheduleOverview(): Promise<HrdScheduleOverview> {
         const label =
           {
             CUTI: "Cuti",
+            CUTI_TAHUNAN: "Cuti Tahunan",
+            CUTI_BULANAN: "Cuti Bulanan",
+            CUTI_HAMIL_LAHIR: "Cuti Hamil/Lahir",
+            CUTI_NIKAH: "Cuti Nikah",
             SAKIT: "Sakit",
             IZIN: "Izin",
+            IZIN_ACARA: "Izin Acara",
+            MENINGGAL: "Meninggal",
             EMERGENCY: "Emergency",
             SETENGAH_HARI: "1/2 Hari",
           }[ticketType] ?? ticketType;
@@ -1268,7 +1327,7 @@ const assignSchema = z.object({
 );
 
 const ASSIGN_ALLOWED_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KABAG"];
-const BULK_ASSIGN_ALLOWED_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD"];
+const BULK_ASSIGN_ALLOWED_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KABAG"];
 
 const assignManySchema = z.object({
   employeeIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu karyawan."),
@@ -1276,6 +1335,7 @@ const assignManySchema = z.object({
   effectiveStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus yyyy-MM-dd"),
   effectiveEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus yyyy-MM-dd"),
   notes: z.string().optional(),
+  skipSundays: z.boolean().optional(),
 }).refine(
   (value) => parseDateOnly(value.effectiveEndDate).getTime() >= parseDateOnly(value.effectiveStartDate).getTime(),
   {
@@ -1347,7 +1407,7 @@ export async function assignEmployeeSchedulesBulk(
   const role = roleRow.role as UserRole;
 
   if (!BULK_ASSIGN_ALLOWED_ROLES.includes(role)) {
-    return { error: "Akses ditolak. Hanya HRD atau Super Admin yang dapat mengatur jadwal serentak." };
+    return { error: "Akses ditolak. Hanya HRD, SPV, KABAG, atau Super Admin yang dapat mengatur jadwal serentak." };
   }
 
   const parsed = assignManySchema.safeParse(input);
@@ -1360,17 +1420,63 @@ export async function assignEmployeeSchedulesBulk(
   const effectiveStartDateObj = parseDateOnly(parsed.data.effectiveStartDate);
   const effectiveEndDateObj = parseDateOnly(parsed.data.effectiveEndDate);
 
+  if (["SPV", "KABAG"].includes(role)) {
+    if (roleRow.divisionIds.length === 0) {
+      return { error: "Akun Anda belum terhubung ke divisi. Hubungi HRD." };
+    }
+    for (const employeeId of uniqueEmployeeIds) {
+      const targetDivisionId = await getEmployeeDivisionId(employeeId);
+      if (!targetDivisionId || !roleRow.divisionIds.includes(targetDivisionId)) {
+        return { error: "Anda hanya boleh mengatur jadwal karyawan di divisi Anda." };
+      }
+    }
+  }
+
+  const skipSundays = parsed.data.skipSundays ?? false;
+
+  // Build date segments: for skipSundays, group contiguous non-Sunday dates into segments
+  // and mark Sundays (day=0) as null (clear/OFF)
+  type DateSegment = { start: Date; end: Date; scheduleId: string | null };
+  const segments: DateSegment[] = [];
+
+  if (!skipSundays) {
+    segments.push({ start: effectiveStartDateObj, end: effectiveEndDateObj, scheduleId: parsed.data.scheduleId });
+  } else {
+    let segStart: Date | null = null;
+    const current = new Date(effectiveStartDateObj);
+    while (current <= effectiveEndDateObj) {
+      const isSunday = current.getDay() === 0;
+      if (!isSunday) {
+        if (!segStart) segStart = new Date(current);
+      } else {
+        if (segStart) {
+          const segEnd = addLocalDays(current, -1);
+          segments.push({ start: segStart, end: segEnd, scheduleId: parsed.data.scheduleId });
+          segStart = null;
+        }
+        // Clear Sunday
+        segments.push({ start: new Date(current), end: new Date(current), scheduleId: null });
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    if (segStart) {
+      segments.push({ start: segStart, end: new Date(effectiveEndDateObj), scheduleId: parsed.data.scheduleId });
+    }
+  }
+
   try {
     await db.transaction(async (tx) => {
       for (const employeeId of uniqueEmployeeIds) {
-        await replaceEmployeeScheduleRange(
-          tx,
-          employeeId,
-          parsed.data.scheduleId,
-          effectiveStartDateObj,
-          effectiveEndDateObj,
-          parsed.data.notes ?? null
-        );
+        for (const seg of segments) {
+          await replaceEmployeeScheduleRange(
+            tx,
+            employeeId,
+            seg.scheduleId,
+            seg.start,
+            seg.end,
+            parsed.data.notes ?? null
+          );
+        }
       }
     });
 

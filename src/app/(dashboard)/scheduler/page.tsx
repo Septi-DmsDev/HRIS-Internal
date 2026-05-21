@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserRoleRow } from "@/lib/auth/session";
 import { getScheduleManagementWorkspace } from "@/server/actions/schedule";
-import { getWorkShiftMasters } from "@/server/actions/work-schedules";
 import SchedulerClient from "./SchedulerClient";
 import type { UserRole } from "@/types";
 
@@ -15,24 +14,17 @@ export default async function SchedulerPage() {
     redirect("/schedule");
   }
 
-  const [{ teamMembers, scheduleOptions }, shiftMasters] = await Promise.all([
-    getScheduleManagementWorkspace(),
-    getWorkShiftMasters(),
-  ]);
+  const workspace = await getScheduleManagementWorkspace();
 
   return (
     <div className="max-w-6xl">
       <SchedulerClient
-        teamMembers={teamMembers}
-        scheduleOptions={scheduleOptions}
-        shiftMasters={shiftMasters.map((row) => ({
-          id: row.id,
-          name: row.name,
-          startTime: row.startTime,
-          endTime: row.endTime,
-          isActive: row.isActive,
-        }))}
-        canBulkAssign={role === "HRD" || role === "SUPER_ADMIN"}
+        teamMembers={workspace.teamMembers}
+        scheduleOptions={workspace.scheduleOptions}
+        periodStart={workspace.periodStart}
+        periodEnd={workspace.periodEnd}
+        assignmentRanges={workspace.assignmentRanges}
+        canBulkAssign={["HRD", "SUPER_ADMIN", "SPV", "KABAG"].includes(role)}
       />
     </div>
   );

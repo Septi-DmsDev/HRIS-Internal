@@ -5,8 +5,6 @@ const overtimePlacementSchema = z.enum(["BEFORE_SHIFT", "AFTER_SHIFT"]);
 export const overtimeRequestSchema = z.object({
   requestDate: z.coerce.date({ message: "Tanggal overtime wajib diisi." }),
   overtimeType: z.enum([
-    "OVERTIME_1H",
-    "OVERTIME_2H",
     "OVERTIME_3H",
     "LEMBUR_FULLDAY",
     "PATCH_ABSENCE_3H",
@@ -32,8 +30,6 @@ export const overtimeDecisionSchema = z.object({
 export const spvSelfOvertimeRequestSchema = z.object({
   requestDate: z.coerce.date({ message: "Tanggal lembur wajib diisi." }),
   overtimeType: z.enum([
-    "OVERTIME_1H",
-    "OVERTIME_2H",
     "OVERTIME_3H",
     "LEMBUR_FULLDAY",
   ]),
@@ -53,8 +49,6 @@ export const spvScheduleOvertimeSchema = z.object({
   employeeId: z.string().uuid("Karyawan tujuan tidak valid."),
   requestDate: z.coerce.date({ message: "Tanggal lembur wajib diisi." }),
   overtimeType: z.enum([
-    "OVERTIME_1H",
-    "OVERTIME_2H",
     "OVERTIME_3H",
     "LEMBUR_FULLDAY",
   ]),

@@ -27,6 +27,7 @@ export type ApprovalTicketRow = {
   startDate: string;
   endDate: string;
   daysCount: number;
+  izinHours?: number | null;
   reason: string;
   attachmentUrl: string | null;
   status: string;
@@ -49,10 +50,17 @@ type DecisionState = {
 
 const TICKET_TYPE_LABEL: Record<string, string> = {
   CUTI: "Cuti",
+  CUTI_TAHUNAN: "Cuti Tahunan",
+  CUTI_BULANAN: "Cuti Bulanan",
+  CUTI_HAMIL_LAHIR: "Cuti Hamil/Lahir",
+  CUTI_NIKAH: "Cuti Nikah",
   SAKIT: "Sakit",
   IZIN: "Izin",
+  IZIN_ACARA: "Izin Acara",
+  IZIN_JAM: "Izin Jam",
+  MENINGGAL: "Meninggal",
   EMERGENCY: "Emergency",
-  SETENGAH_HARI: "Setengah Hari",
+  SETENGAH_HARI: "Setengah Hari (lama)",
   RESIGN: "Resign",
 };
 
@@ -187,7 +195,9 @@ export default function TicketApprovalClient({ tickets, historyTickets, alphaRow
           {row.original.startDate !== row.original.endDate && (
             <p className="text-slate-400">s/d {row.original.endDate}</p>
           )}
-          <p className="text-xs text-slate-400">{row.original.daysCount} hari</p>
+          {row.original.ticketType === "IZIN_JAM"
+            ? <p className="text-xs text-slate-400">{row.original.izinHours ?? "-"} jam</p>
+            : <p className="text-xs text-slate-400">{row.original.daysCount} hari</p>}
         </div>
       ),
     },
@@ -499,7 +509,9 @@ export default function TicketApprovalClient({ tickets, historyTickets, alphaRow
                   {row.original.startDate !== row.original.endDate && (
                     <p className="text-slate-400">s/d {row.original.endDate}</p>
                   )}
-                  <p className="text-xs text-slate-400">{row.original.daysCount} hari</p>
+                  {row.original.ticketType === "IZIN_JAM"
+            ? <p className="text-xs text-slate-400">{row.original.izinHours ?? "-"} jam</p>
+            : <p className="text-xs text-slate-400">{row.original.daysCount} hari</p>}
                 </div>
               ),
             },

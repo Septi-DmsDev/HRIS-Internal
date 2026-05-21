@@ -140,7 +140,7 @@ export default async function EmployeeDetailPage({
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline">
-            <Link href="/master/work-schedules">Jadwal Kerja</Link>
+            <Link href="/master?tab=master-shift">Jadwal Kerja</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/employees">Kembali</Link>

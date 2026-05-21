@@ -2,14 +2,34 @@ import { z } from "zod";
 
 export const createTicketSchema = z.object({
   employeeId: z.string().uuid("Karyawan tidak valid.").optional().or(z.literal("")),
-  ticketType: z.enum(["CUTI", "SAKIT", "IZIN", "EMERGENCY", "SETENGAH_HARI", "RESIGN"]),
+  ticketType: z.enum([
+    "CUTI",
+    "CUTI_TAHUNAN",
+    "CUTI_BULANAN",
+    "CUTI_HAMIL_LAHIR",
+    "CUTI_NIKAH",
+    "SAKIT",
+    "IZIN",
+    "IZIN_ACARA",
+    "IZIN_JAM",
+    "MENINGGAL",
+    "EMERGENCY",
+    "RESIGN",
+  ]),
   startDate: z.coerce.date({ message: "Tanggal mulai wajib diisi." }),
   endDate: z.coerce.date({ message: "Tanggal akhir wajib diisi." }),
   reason: z.string().trim().min(5, "Alasan minimal 5 karakter."),
   attachmentUrl: z.string().trim().url().optional().or(z.literal("")),
+  izinHours: z.coerce.number().int().min(1).max(8).optional(),
 }).superRefine((v, ctx) => {
   if (v.endDate < v.startDate) {
     ctx.addIssue({ code: "custom", path: ["endDate"], message: "Tanggal akhir tidak boleh sebelum tanggal mulai." });
+  }
+
+  if (v.ticketType === "IZIN_JAM") {
+    if (!v.izinHours || v.izinHours < 1 || v.izinHours > 8) {
+      ctx.addIssue({ code: "custom", path: ["izinHours"], message: "Izin jam harus diisi antara 1–8 jam." });
+    }
   }
 
   const daysCount = Math.max(1, Math.ceil((v.endDate.getTime() - v.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
@@ -63,6 +83,7 @@ export const alphaActionSchema = z.object({
 });
 
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
+export const IZIN_JAM_DEDUCTION_PER_HOUR = 5_000;
 export type TicketDecisionInput = z.infer<typeof ticketDecisionSchema>;
 export type CreateReviewInput = z.infer<typeof createReviewSchema>;
 export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;

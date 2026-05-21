@@ -592,6 +592,7 @@ export async function getPayrollEmployeeDetail(periodId: string, employeeId: str
       startDate: attendanceTickets.startDate,
       endDate: attendanceTickets.endDate,
       daysCount: attendanceTickets.daysCount,
+      izinHours: attendanceTickets.izinHours,
       status: attendanceTickets.status,
       payrollImpact: attendanceTickets.payrollImpact,
       reason: attendanceTickets.reason,
@@ -1915,7 +1916,7 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
     const managerialKpi = managerialKpiMap.get(employee.id);
     const employeeTickets = ticketsByEmployee.get(employee.id) ?? [];
     const approvedUnpaidLeaveDays = employeeTickets
-      .filter((ticket) => ticket.payrollImpact === "UNPAID")
+      .filter((ticket) => ticket.payrollImpact === "UNPAID" && ticket.ticketType !== "IZIN_JAM")
       .reduce(
         (sum, ticket) => sum + countOverlapDays(ticket.startDate, ticket.endDate, periodStartDate, periodEndDate),
         0
@@ -1926,6 +1927,10 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
         (sum, ticket) => sum + countOverlapDays(ticket.startDate, ticket.endDate, periodStartDate, periodEndDate),
         0
       );
+    const approvedIzinJamHours = employeeTickets
+      .filter((ticket) => ticket.ticketType === "IZIN_JAM")
+      .reduce((sum, ticket) => sum + (ticket.izinHours ?? 0), 0);
+    const izinJamDeductionAmount = roundCurrency(approvedIzinJamHours * 5_000);
 
     const employeeIncidents = incidentsByEmployee.get(employee.id) ?? [];
     const incidentTypes = employeeIncidents.map((incident) => incident.incidentType);
@@ -1949,7 +1954,7 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
     );
     const overtimeAmount = roundCurrency(overtimeByEmployee.get(employee.id) ?? 0);
 
-    const hasApprovedAbsence = approvedUnpaidLeaveDays + approvedPaidLeaveDays > 0;
+    const hasApprovedAbsence = approvedUnpaidLeaveDays + approvedPaidLeaveDays > 0 || approvedIzinJamHours > 0;
     const attendanceSummary = resolveAttendancePayrollEligibility({
       scheduledWorkDays,
       records: attendanceByEmployee.get(employee.id) ?? [],
@@ -2064,7 +2069,7 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
         });
 
     const takeHomePay = roundCurrency(
-      payrollCalc.takeHomePay + gradeAllowanceAmount + tenureAllowanceAmount + overtimeAmount
+      payrollCalc.takeHomePay + gradeAllowanceAmount + tenureAllowanceAmount + overtimeAmount - izinJamDeductionAmount
     );
     const totalAdditionAmount = roundCurrency(
       gradeAllowanceAmount +
@@ -2080,6 +2085,7 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
     const totalDeductionAmount = roundCurrency(
       payrollCalc.unpaidLeaveDeductionAmount +
         payrollCalc.incidentDeductionAmount +
+        izinJamDeductionAmount +
         Math.abs(Math.min(manualAdjustmentAmount, 0))
     );
 
@@ -2159,6 +2165,8 @@ export async function generatePayrollPreview(input: unknown, options: GeneratePa
           midPeriodTrainingFeeRuleApplied: shouldApplyMidPeriodTrainingFeeRule,
           approvedUnpaidLeaveDays,
           approvedPaidLeaveDays,
+          approvedIzinJamHours,
+          izinJamDeductionAmount,
           unpaidLeaveDeductionAmount: payrollCalc.unpaidLeaveDeductionAmount,
           incidentDeductionAmount: payrollCalc.incidentDeductionAmount,
           manualAdjustmentAmount,

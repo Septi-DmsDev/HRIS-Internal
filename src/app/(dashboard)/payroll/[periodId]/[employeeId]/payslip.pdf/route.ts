@@ -29,6 +29,7 @@ export async function GET(_: Request, context: RouteContext) {
   const breakdownMeta = (detail.breakdown ?? {}) as {
     unpaidLeaveDeductionAmount?: number;
     incidentDeductionAmount?: number;
+    izinJamDeductionAmount?: number;
     manualAdjustmentAmount?: number;
   };
 
@@ -46,6 +47,7 @@ export async function GET(_: Request, context: RouteContext) {
     bonusTeamAmount: Number(detail.bonusTeamAmount),
     incidentDeductionAmount: Number(breakdownMeta.incidentDeductionAmount ?? Number(detail.incidentDeductionAmount)),
     unpaidLeaveDeductionAmount: Number(breakdownMeta.unpaidLeaveDeductionAmount ?? 0),
+    izinJamDeductionAmount: Number(breakdownMeta.izinJamDeductionAmount ?? 0),
     manualAdjustmentAmount: Number(breakdownMeta.manualAdjustmentAmount ?? Number(detail.manualAdjustmentAmount)),
     takeHomePay: Number(detail.takeHomePay),
   });

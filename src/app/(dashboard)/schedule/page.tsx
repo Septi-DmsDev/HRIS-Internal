@@ -13,8 +13,14 @@ const GRID_HEADERS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 const TICKET_TYPE_LABELS: Record<string, string> = {
   CUTI: "Cuti",
+  CUTI_TAHUNAN: "Cuti Tahunan",
+  CUTI_BULANAN: "Cuti Bulanan",
+  CUTI_HAMIL_LAHIR: "Cuti Hamil/Lahir",
+  CUTI_NIKAH: "Cuti Nikah",
   SAKIT: "Sakit",
   IZIN: "Izin",
+  IZIN_ACARA: "Izin Acara",
+  MENINGGAL: "Meninggal",
   EMERGENCY: "Emergency",
   SETENGAH_HARI: "1/2 Hari",
   RESIGN: "Resign",
@@ -22,8 +28,14 @@ const TICKET_TYPE_LABELS: Record<string, string> = {
 
 const TICKET_TYPE_COLORS: Record<string, string> = {
   CUTI: "bg-orange-100 text-orange-800",
+  CUTI_TAHUNAN: "bg-orange-100 text-orange-800",
+  CUTI_BULANAN: "bg-amber-100 text-amber-800",
+  CUTI_HAMIL_LAHIR: "bg-pink-100 text-pink-800",
+  CUTI_NIKAH: "bg-fuchsia-100 text-fuchsia-800",
   SAKIT: "bg-blue-100 text-blue-800",
   IZIN: "bg-yellow-100 text-yellow-800",
+  IZIN_ACARA: "bg-lime-100 text-lime-800",
+  MENINGGAL: "bg-neutral-200 text-neutral-800",
   EMERGENCY: "bg-red-100 text-red-800",
   SETENGAH_HARI: "bg-purple-100 text-purple-800",
   RESIGN: "bg-slate-200 text-slate-800",

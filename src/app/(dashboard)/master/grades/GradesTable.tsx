@@ -154,23 +154,22 @@ export default function GradesTable({ data }: GradesTableProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={() => {
-            setFormError(null);
-            setCreateOpen(true);
-          }}
-        >
-          Tambah Grade
-        </Button>
-      </div>
-
       <DataTable
         data={data}
         columns={columns}
         searchKey="name"
         searchPlaceholder="Cari grade..."
+        toolbarSlot={
+          <Button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setCreateOpen(true);
+            }}
+          >
+            Tambah Grade
+          </Button>
+        }
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

@@ -1,0 +1,10 @@
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'CUTI_TAHUNAN';
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'CUTI_BULANAN';
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'CUTI_HAMIL_LAHIR';
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'CUTI_NIKAH';
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'IZIN_ACARA';
+ALTER TYPE "public"."ticket_type" ADD VALUE IF NOT EXISTS 'MENINGGAL';
+
+ALTER TABLE "leave_quotas"
+  ADD COLUMN IF NOT EXISTS "event_quota_total" integer NOT NULL DEFAULT 3,
+  ADD COLUMN IF NOT EXISTS "event_quota_used" integer NOT NULL DEFAULT 0;

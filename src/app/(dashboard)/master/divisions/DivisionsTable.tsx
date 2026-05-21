@@ -167,23 +167,22 @@ export default function DivisionsTable({ data, branches }: DivisionsTableProps) 
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={() => {
-            setFormError(null);
-            setCreateOpen(true);
-          }}
-        >
-          Tambah Divisi
-        </Button>
-      </div>
-
       <DataTable
         data={data}
         columns={columns}
         searchKey="name"
         searchPlaceholder="Cari divisi..."
+        toolbarSlot={
+          <Button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setCreateOpen(true);
+            }}
+          >
+            Tambah Divisi
+          </Button>
+        }
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

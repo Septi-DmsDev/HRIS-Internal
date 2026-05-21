@@ -16,6 +16,7 @@ type PayslipBreakdownInput = {
   bonusTeamAmount: number;
   incidentDeductionAmount: number;
   unpaidLeaveDeductionAmount: number;
+  izinJamDeductionAmount?: number;
   manualAdjustmentAmount: number;
   takeHomePay: number;
 };
@@ -63,6 +64,7 @@ export function buildPayslipBreakdown(input: PayslipBreakdownInput) {
   const deductions = positiveItems([
     { key: "incidentDeductionAmount", label: labels.incidentDeductionAmount, amount: input.incidentDeductionAmount },
     { key: "unpaidLeaveDeductionAmount", label: labels.unpaidLeaveDeductionAmount, amount: input.unpaidLeaveDeductionAmount },
+    { key: "izinJamDeductionAmount", label: "Potongan Izin Jam", amount: input.izinJamDeductionAmount ?? 0 },
     {
       key: "manualAdjustmentAmount",
       label: labels.manualDeduction,

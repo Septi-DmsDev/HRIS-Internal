@@ -16,7 +16,7 @@ import {
 import { Camera, ChevronDown, ScanSearch, Trash2 } from "lucide-react";
 import { batchSubmitDraft } from "@/server/actions/performance";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
-import { formatOneDecimal } from "@/lib/format/number";
+import { formatPointNumber } from "@/lib/format/number";
 import type { TwCatalogEntry, TwActivityItem } from "@/server/actions/performance";
 
 type DraftItem = {
@@ -653,7 +653,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                       >
                         <span className={inputCatalogId ? "text-slate-900 truncate" : "text-slate-400"}>
                           {selectedCatalog
-                            ? `${selectedCatalog.workName}${selectedCatalog.unitDescription ? ` (${selectedCatalog.unitDescription})` : ""} — ${selectedCatalog.pointValue} poin`
+                            ? `${selectedCatalog.workName}${selectedCatalog.unitDescription ? ` (${selectedCatalog.unitDescription})` : ""} — ${formatPointNumber(selectedCatalog.pointValue)} poin`
                             : "Pilih pekerjaan…"}
                         </span>
                         <ChevronDown size={14} className="text-slate-400 shrink-0" />
@@ -697,7 +697,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                                       <span className="text-slate-400"> ({c.unitDescription})</span>
                                     )}
                                   </span>
-                                  <span className="shrink-0 text-xs text-slate-500 tabular-nums">{c.pointValue} poin</span>
+                                  <span className="shrink-0 text-xs text-slate-500 tabular-nums">{formatPointNumber(c.pointValue)} poin</span>
                                 </button>
                               ))
                             )}
@@ -754,7 +754,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                             <td className="px-3 py-1.5 text-slate-800">{line.workName}</td>
                             <td className="px-3 py-1.5 text-right tabular-nums">{line.qty}</td>
                             <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
-                              {formatOneDecimal(line.pointValue * line.qty)}
+                              {formatPointNumber(line.pointValue * line.qty)}
                             </td>
                             <td className="px-3 py-1.5 text-right">
                               <button
@@ -773,7 +773,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                             Subtotal
                           </td>
                           <td className="px-3 py-1.5 text-right text-xs font-semibold text-teal-600 tabular-nums">
-                            {formatOneDecimal(currentJobLineTotal)}
+                            {formatPointNumber(currentJobLineTotal)}
                           </td>
                           <td />
                         </tr>
@@ -808,7 +808,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                                 Job ID: {jobId}
                               </td>
                               <td className="px-4 py-2 text-right tabular-nums text-xs font-medium text-slate-600">
-                                {formatOneDecimal(groupTotal)}
+                                {formatPointNumber(groupTotal)}
                               </td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
@@ -837,7 +837,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                                 <td className="px-4 py-2 pl-8 text-slate-700">{item.workName}</td>
                                 <td className="px-4 py-2 text-right tabular-nums text-slate-600">{item.qty}</td>
                                 <td className="px-4 py-2 text-right tabular-nums font-medium text-slate-800">
-                                  {formatOneDecimal(item.pointValue * item.qty)}
+                                  {formatPointNumber(item.pointValue * item.qty)}
                                 </td>
                                 <td className="px-4 py-2 text-right">
                                   <button
@@ -860,7 +860,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                           Total Poin
                         </td>
                         <td className="px-4 py-2.5 text-right font-bold text-teal-600 tabular-nums">
-                          {formatOneDecimal(draftTotal)}
+                          {formatPointNumber(draftTotal)}
                         </td>
                         <td />
                       </tr>
@@ -924,7 +924,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900">
                         {["approved", "locked"].includes(group.statusType)
-                          ? formatOneDecimal(group.totalPoints)
+                          ? formatPointNumber(group.totalPoints)
                           : "—"}
                       </td>
                       <td className="px-4 py-3">

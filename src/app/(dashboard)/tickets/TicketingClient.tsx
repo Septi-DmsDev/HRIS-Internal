@@ -28,6 +28,7 @@ type TicketRow = {
   startDate: string;
   endDate: string;
   daysCount: number;
+  izinHours: number | null;
   reason: string;
   attachmentUrl: string | null;
   status: string;
@@ -78,6 +79,7 @@ type TicketDraft = {
   endDate: string;
   reason: string;
   attachmentUrl: string;
+  izinHours: string;
 };
 
 type AttendanceEditDraft = {
@@ -93,10 +95,17 @@ type AttendanceEditDraft = {
 
 const TICKET_TYPE_LABEL: Record<string, string> = {
   CUTI: "Cuti",
+  CUTI_TAHUNAN: "Cuti Tahunan",
+  CUTI_BULANAN: "Cuti Bulanan",
+  CUTI_HAMIL_LAHIR: "Cuti Hamil/Lahir",
+  CUTI_NIKAH: "Cuti Nikah",
   SAKIT: "Sakit",
   IZIN: "Izin",
+  IZIN_ACARA: "Izin Acara",
+  IZIN_JAM: "Izin Jam",
+  MENINGGAL: "Meninggal",
   EMERGENCY: "Emergency",
-  SETENGAH_HARI: "Setengah Hari",
+  SETENGAH_HARI: "Setengah Hari (lama)",
   RESIGN: "Resign",
 };
 
@@ -135,11 +144,12 @@ const PAYROLL_IMPACT_LABEL: Record<string, string> = {
 function createDraft(): TicketDraft {
   const today = new Date().toISOString().slice(0, 10);
   return {
-    ticketType: "IZIN",
+    ticketType: "IZIN_ACARA",
     startDate: today,
     endDate: today,
     reason: "",
     attachmentUrl: "",
+    izinHours: "",
   };
 }
 
@@ -177,6 +187,7 @@ export default function TicketingClient({ role, hasEmployeeLink, tickets, canMan
   const [attendanceDraft, setAttendanceDraft] = useState<AttendanceEditDraft | null>(null);
 
   const needsAttachment = draft.ticketType === "SAKIT" && getDurationDays(draft.startDate, draft.endDate) > 1;
+  const isIzinJam = draft.ticketType === "IZIN_JAM";
   const canSubmit = hasEmployeeLink;
 
   function update(field: keyof TicketDraft, value: string) {
@@ -187,7 +198,12 @@ export default function TicketingClient({ role, hasEmployeeLink, tickets, canMan
     setPending(true);
     setError(null);
     try {
-      const result = await createTicket(draft);
+      const payload = {
+        ...draft,
+        endDate: isIzinJam ? draft.startDate : draft.endDate,
+        izinHours: isIzinJam && draft.izinHours ? Number(draft.izinHours) : undefined,
+      };
+      const result = await createTicket(payload);
       if (result && "error" in result) {
         setError(result.error ?? "Gagal mengajukan tiket.");
         return;
@@ -220,7 +236,7 @@ export default function TicketingClient({ role, hasEmployeeLink, tickets, canMan
   const ticketColumns: ColumnDef<TicketRow>[] = useMemo(() => [
     { header: "Karyawan", accessorKey: "employeeName", cell: ({ row }) => <div className="space-y-0.5"><p className="font-medium text-slate-900">{row.original.employeeName}</p><p className="text-xs text-slate-500">{row.original.employeeCode} - {row.original.divisionName}</p></div> },
     { header: "Jenis", accessorKey: "ticketType", cell: ({ row }) => <Badge variant="outline">{TICKET_TYPE_LABEL[row.original.ticketType] ?? row.original.ticketType}</Badge> },
-    { header: "Tanggal", id: "dates", cell: ({ row }) => <div className="text-sm"><p>{row.original.startDate}</p>{row.original.startDate !== row.original.endDate && <p className="text-slate-400">s/d {row.original.endDate}</p>}<p className="text-xs text-slate-400">{row.original.daysCount} hari</p></div> },
+    { header: "Tanggal", id: "dates", cell: ({ row }) => <div className="text-sm"><p>{row.original.startDate}</p>{row.original.startDate !== row.original.endDate && <p className="text-slate-400">s/d {row.original.endDate}</p>}{row.original.ticketType === "IZIN_JAM" ? <p className="text-xs text-slate-400">{row.original.izinHours ?? "-"} jam</p> : <p className="text-xs text-slate-400">{row.original.daysCount} hari</p>}</div> },
     { header: "Alasan", accessorKey: "reason", cell: ({ row }) => <p className="max-w-[220px] truncate text-sm">{row.original.reason}</p> },
     { header: "Bukti", accessorKey: "attachmentUrl", cell: ({ row }) => <span className="text-sm text-slate-500">{row.original.attachmentUrl ? "Terlampir" : "-"}</span> },
     { header: "Status", accessorKey: "status", cell: ({ row }) => <div className="space-y-1"><Badge variant={TICKET_STATUS_VARIANT[row.original.status] ?? "outline"}>{TICKET_STATUS_LABEL[row.original.status] ?? row.original.status}</Badge>{row.original.payrollImpact && <p className="text-xs text-slate-500">{PAYROLL_IMPACT_LABEL[row.original.payrollImpact]}</p>}{row.original.rejectionReason && <p className="max-w-[220px] truncate text-xs text-red-600">{row.original.rejectionReason}</p>}</div> },
@@ -332,8 +348,17 @@ export default function TicketingClient({ role, hasEmployeeLink, tickets, canMan
           <DialogHeader><DialogTitle>Ajukan Tiket</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Tiket akan diajukan untuk akun Anda sendiri.</div>
-            <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Jenis Tiket</label><select value={draft.ticketType} onChange={(e) => update("ticketType", e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CUTI">Cuti</option><option value="SAKIT">Sakit</option><option value="IZIN">Izin</option><option value="EMERGENCY">Emergency</option><option value="SETENGAH_HARI">Setengah Hari</option><option value="RESIGN">Resign</option></select></div>
-            <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Tanggal Mulai</label><Input type="date" value={draft.startDate} onChange={(e) => update("startDate", e.target.value)} /></div><div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Tanggal Akhir</label><Input type="date" value={draft.endDate} onChange={(e) => update("endDate", e.target.value)} /></div></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Jenis Tiket</label><select value={draft.ticketType} onChange={(e) => update("ticketType", e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CUTI_TAHUNAN">Cuti Tahunan</option><option value="CUTI_BULANAN">Cuti Bulanan</option><option value="CUTI_HAMIL_LAHIR">Cuti Hamil/Lahir</option><option value="CUTI_NIKAH">Cuti Nikah</option><option value="IZIN_ACARA">Izin Acara</option><option value="SAKIT">Sakit</option><option value="MENINGGAL">Meninggal</option><option value="EMERGENCY">Emergency</option><option value="IZIN_JAM">Izin Jam</option><option value="RESIGN">Resign</option></select></div>
+            {isIzinJam && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Izin jam menghapus bonus fulltime (Rp 200.000) dan memotong gaji Rp 5.000/jam.
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Tanggal Mulai</label><Input type="date" value={draft.startDate} onChange={(e) => update("startDate", e.target.value)} /></div>
+              {!isIzinJam && <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Tanggal Akhir</label><Input type="date" value={draft.endDate} onChange={(e) => update("endDate", e.target.value)} /></div>}
+              {isIzinJam && <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Jumlah Jam <span className="text-red-500">*</span></label><Input type="number" min={1} max={8} placeholder="1–8" value={draft.izinHours} onChange={(e) => update("izinHours", e.target.value)} /></div>}
+            </div>
             <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Alasan / Catatan</label><textarea value={draft.reason} onChange={(e) => update("reason", e.target.value)} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
             {needsAttachment && <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Bukti fisik/digital <span className="text-red-500">*</span></label><Input type="url" placeholder="https://..." value={draft.attachmentUrl} onChange={(e) => update("attachmentUrl", e.target.value)} /><p className="text-xs text-slate-500">Sakit lebih dari 1 hari wajib menyertakan surat dokter.</p></div>}
             {error && <p className="text-sm text-red-600">{error}</p>}

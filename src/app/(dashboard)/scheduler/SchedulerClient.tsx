@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assignEmployeeSchedule, assignEmployeeSchedulesBulk, getEmployeeScheduleDetail } from "@/server/actions/schedule";
-import { createWorkShiftMaster, deleteWorkShiftMaster, updateWorkShiftMaster } from "@/server/actions/work-schedules";
 import { CalendarCog, CalendarDays, CheckCircle2, Clock, Filter, Loader2, Users } from "lucide-react";
 import type { MyScheduleResult } from "@/server/actions/schedule";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -25,6 +24,7 @@ import {
   normalizeEmployeeGroup,
   resolveEmployeeGroupLabel,
 } from "@/lib/employee-groups";
+import type { ScheduleAssignmentRange } from "@/server/actions/schedule";
 
 type TeamMember = {
   employeeId: string;
@@ -53,7 +53,9 @@ type ScheduleOption = {
 type Props = {
   teamMembers: TeamMember[];
   scheduleOptions: ScheduleOption[];
-  shiftMasters: ShiftMaster[];
+  periodStart: string;
+  periodEnd: string;
+  assignmentRanges: ScheduleAssignmentRange[];
   canBulkAssign?: boolean;
 };
 
@@ -73,27 +75,32 @@ type BulkForm = {
   notes: string;
 };
 
-type ShiftMaster = {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  isActive: boolean;
-};
-
-type ShiftDraft = {
-  id?: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  isActive: boolean;
-};
-
 const DAY_NAMES_ID = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 function getTodayStr(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function getCurrentPayrollPeriodStr() {
+  const jakartaNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const year = jakartaNow.getUTCFullYear();
+  const month = jakartaNow.getUTCMonth();
+  const day = jakartaNow.getUTCDate();
+
+  if (day >= 26) {
+    const start = `${year}-${String(month + 1).padStart(2, "0")}-26`;
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear = month === 11 ? year + 1 : year;
+    const end = `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-25`;
+    return { start, end };
+  }
+
+  const prevMonth = month === 0 ? 11 : month - 1;
+  const prevYear = month === 0 ? year - 1 : year;
+  const start = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}-26`;
+  const end = `${year}-${String(month + 1).padStart(2, "0")}-25`;
+  return { start, end };
 }
 
 function addDaysStr(days: number): string {
@@ -109,32 +116,17 @@ function formatDateDisplay(dateStr: string): string {
   return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
 }
 
-function buildShiftCodeFromName(name: string): string {
-  const normalized = name
-    .toLowerCase()
-    .trim()
-    .replace(/target\s*13\.?000/g, "")
-    .replace(/target\s*13000/g, "")
-    .replace(/13k/g, "")
-    .replace(/[^a-z0-9_ ]+/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  const match = normalized.match(/^shift_?(\d+[a-z]?)$/);
-  if (match) return `shift_${match[1]}`.slice(0, 20);
-  return (normalized || "shift").slice(0, 20);
-}
-
 export default function SchedulerClient({
   teamMembers,
   scheduleOptions,
-  shiftMasters,
+  periodStart,
+  periodEnd,
+  assignmentRanges,
   canBulkAssign = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<"SCHEDULER" | "SHIFT">("SCHEDULER");
+  const payrollPeriod = useMemo(() => getCurrentPayrollPeriodStr(), []);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -142,32 +134,34 @@ export default function SchedulerClient({
     employeeId: "",
     employeeName: "",
     scheduleId: "",
-    effectiveStartDate: getTodayStr(),
-    effectiveEndDate: addDaysStr(6),
+    effectiveStartDate: payrollPeriod.start,
+    effectiveEndDate: payrollPeriod.end,
     notes: "",
   });
   const [bulkForm, setBulkForm] = useState<BulkForm>({
     scheduleId: "",
-    effectiveStartDate: getTodayStr(),
-    effectiveEndDate: addDaysStr(6),
+    effectiveStartDate: payrollPeriod.start,
+    effectiveEndDate: payrollPeriod.end,
     notes: "",
   });
+  const [quickScheduleByEmployee, setQuickScheduleByEmployee] = useState<Record<string, string>>({});
+  const [quickError, setQuickError] = useState<string | null>(null);
+  const [quickSuccess, setQuickSuccess] = useState<string | null>(null);
   const [branchFilter, setBranchFilter] = useState("");
   const [divisionFilter, setDivisionFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Record<string, boolean>>({});
+  const [matrixStartDate, setMatrixStartDate] = useState(periodStart);
+  const [matrixEndDate, setMatrixEndDate] = useState(periodEnd);
+  const [matrixDate, setMatrixDate] = useState(periodStart);
+  const [matrixScheduleId, setMatrixScheduleId] = useState("");
+  const [matrixError, setMatrixError] = useState<string | null>(null);
+  const [matrixSuccess, setMatrixSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [bulkSuccess, setBulkSuccess] = useState(false);
-  const [shiftError, setShiftError] = useState<string | null>(null);
-  const [shiftSuccess, setShiftSuccess] = useState(false);
-  const [shiftDraft, setShiftDraft] = useState<ShiftDraft>({
-    name: "",
-    startTime: "08:00",
-    endTime: "17:00",
-    isActive: true,
-  });
   const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false);
   const [scheduleDetailLoading, setScheduleDetailLoading] = useState(false);
   const [scheduleDetailError, setScheduleDetailError] = useState<string | null>(null);
@@ -232,27 +226,100 @@ export default function SchedulerClient({
     setGroupFilter("");
   }
 
-  function resetShiftForm() {
-    setShiftDraft({
-      name: "",
-      startTime: "08:00",
-      endTime: "17:00",
-      isActive: true,
-    });
-    setShiftError(null);
-    setShiftSuccess(false);
+  const periodDates = useMemo(() => {
+    const result: string[] = [];
+    const cursor = new Date(`${matrixStartDate}T00:00:00`);
+    const end = new Date(`${matrixEndDate}T00:00:00`);
+    if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime()) || cursor > end) {
+      return result;
+    }
+    while (cursor <= end) {
+      result.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return result;
+  }, [matrixEndDate, matrixStartDate]);
+
+  const assignmentMap = useMemo(() => {
+    const map = new Map<string, ScheduleAssignmentRange[]>();
+    for (const row of assignmentRanges) {
+      const list = map.get(row.employeeId) ?? [];
+      list.push(row);
+      map.set(row.employeeId, list);
+    }
+    return map;
+  }, [assignmentRanges]);
+
+  function resolveScheduleAtDate(employeeId: string, dateKey: string) {
+    const rows = assignmentMap.get(employeeId) ?? [];
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      const inRange =
+        row.effectiveStartDate <= dateKey &&
+        (row.effectiveEndDate === null || row.effectiveEndDate >= dateKey);
+      if (inRange) return row.scheduleId;
+    }
+    return "";
   }
 
-  function startEditShift(shift: ShiftMaster) {
-    setShiftDraft({
-      id: shift.id,
-      name: shift.name,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      isActive: shift.isActive,
+  async function applySingleCell(employeeId: string, dateKey: string, scheduleId: string) {
+    setMatrixError(null);
+    setMatrixSuccess(null);
+    if (!scheduleId) {
+      setMatrixError("Pilih shift untuk sel ini.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await assignEmployeeSchedule({
+        employeeId,
+        scheduleId,
+        effectiveStartDate: dateKey,
+        effectiveEndDate: dateKey,
+        notes: "Matrix scheduler",
+      });
+      if ("error" in result) {
+        setMatrixError(result.error);
+        return;
+      }
+      setMatrixSuccess(`Shift tanggal ${formatDateDisplay(dateKey)} tersimpan.`);
+      router.refresh();
     });
-    setShiftError(null);
-    setShiftSuccess(false);
+  }
+
+  async function applySelectedByDate() {
+    setMatrixError(null);
+    setMatrixSuccess(null);
+    const employeeIds = filteredTeamMembers.filter((m) => selectedEmployeeIds[m.employeeId]).map((m) => m.employeeId);
+    if (employeeIds.length === 0) {
+      setMatrixError("Pilih minimal satu karyawan.");
+      return;
+    }
+    if (!matrixScheduleId) {
+      setMatrixError("Pilih shift untuk aksi massal.");
+      return;
+    }
+    const startMs = new Date(matrixStartDate).getTime();
+    const endMs = new Date(matrixEndDate).getTime();
+    const rangeDays = Math.round((endMs - startMs) / 86400000) + 1;
+    const skipSundays = rangeDays > 6;
+
+    startTransition(async () => {
+      const result = await assignEmployeeSchedulesBulk({
+        employeeIds,
+        scheduleId: matrixScheduleId,
+        effectiveStartDate: matrixStartDate,
+        effectiveEndDate: matrixEndDate,
+        notes: "Bulk matrix scheduler",
+        skipSundays,
+      });
+      if ("error" in result) {
+        setMatrixError(result.error);
+        return;
+      }
+      const suffix = skipSundays ? " (hari Minggu di-OFF otomatis)" : "";
+      setMatrixSuccess(`Berhasil set ${employeeIds.length} karyawan${suffix}.`);
+      router.refresh();
+    });
   }
 
   function openDialog(member: TeamMember) {
@@ -260,8 +327,8 @@ export default function SchedulerClient({
       employeeId: member.employeeId,
       employeeName: member.employeeName,
       scheduleId: member.scheduleId ?? "",
-      effectiveStartDate: getTodayStr(),
-      effectiveEndDate: addDaysStr(6),
+      effectiveStartDate: payrollPeriod.start,
+      effectiveEndDate: payrollPeriod.end,
       notes: "",
     });
     setError(null);
@@ -305,8 +372,8 @@ export default function SchedulerClient({
   function openBulkDialog() {
     setBulkForm({
       scheduleId: "",
-      effectiveStartDate: getTodayStr(),
-      effectiveEndDate: addDaysStr(6),
+      effectiveStartDate: payrollPeriod.start,
+      effectiveEndDate: payrollPeriod.end,
       notes: "",
     });
     setBulkError(null);
@@ -402,55 +469,29 @@ export default function SchedulerClient({
     });
   }
 
-  async function handleShiftSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setShiftError(null);
-    setShiftSuccess(false);
-
-    if (!shiftDraft.name.trim()) {
-      setShiftError("Nama shift wajib diisi.");
+  function handleQuickAssign(member: TeamMember) {
+    setQuickError(null);
+    setQuickSuccess(null);
+    const scheduleId = quickScheduleByEmployee[member.employeeId] ?? member.scheduleId ?? "";
+    if (!scheduleId) {
+      setQuickError("Pilih master shift dulu untuk mode cepat.");
       return;
     }
 
     startTransition(async () => {
-      const code = buildShiftCodeFromName(shiftDraft.name.trim());
-      const payload = {
-        code,
-        name: shiftDraft.name.trim(),
-        startTime: shiftDraft.startTime,
-        endTime: shiftDraft.endTime,
-        isOvernight: false,
-        applicableDivisionCodes: [],
-        notes: "",
-        sortOrder: 0,
-        isActive: shiftDraft.isActive,
-      };
-
-      const result = shiftDraft.id
-        ? await updateWorkShiftMaster(shiftDraft.id, payload)
-        : await createWorkShiftMaster(payload);
-
+      const result = await assignEmployeeSchedule({
+        employeeId: member.employeeId,
+        scheduleId,
+        effectiveStartDate: payrollPeriod.start,
+        effectiveEndDate: payrollPeriod.end,
+        notes: "Mode cepat periode aktif 26-25",
+      });
       if ("error" in result) {
-        setShiftError(result.error);
-      } else {
-        setShiftSuccess(true);
-        router.refresh();
-        setTimeout(() => resetShiftForm(), 700);
+        setQuickError(result.error);
+        return;
       }
-    });
-  }
-
-  function handleDeleteShift(shiftId: string) {
-    setShiftError(null);
-    setShiftSuccess(false);
-    startTransition(async () => {
-      const result = await deleteWorkShiftMaster(shiftId);
-      if ("error" in result) {
-        setShiftError(result.error);
-      } else {
-        setShiftSuccess(true);
-        router.refresh();
-      }
+      setQuickSuccess(`Shift ${member.employeeName} tersimpan untuk periode ${formatDateDisplay(payrollPeriod.start)} - ${formatDateDisplay(payrollPeriod.end)}.`);
+      router.refresh();
     });
   }
 
@@ -479,206 +520,183 @@ export default function SchedulerClient({
       ),
     },
     {
-      accessorKey: "scheduleName",
-      header: "Jadwal Aktif",
-      cell: ({ row }) => {
-        const { scheduleName, scheduleCode, effectiveStartDate, effectiveEndDate } = row.original;
-        if (!scheduleName) {
-          return <span className="text-xs text-slate-400 italic">Belum ada jadwal</span>;
-        }
-        return (
-          <div>
-            <p className="text-sm font-semibold text-slate-800">{scheduleName}</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              <span className="font-mono">{scheduleCode}</span>
-              {effectiveStartDate && (
-                <span className="ml-1.5">· sejak {effectiveStartDate}</span>
-              )}
-              {effectiveEndDate && (
-                <span className="ml-1.5">s.d. {effectiveEndDate}</span>
-              )}
-            </p>
-          </div>
-        );
-      },
-    },
-    {
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs font-semibold border-slate-200 hover:border-teal-300 hover:text-teal-700 hover:bg-teal-50 transition-colors"
-          onClick={() => openDialog(row.original)}
-        >
-          <CalendarCog size={12} className="mr-1.5" />
-          Ganti Jadwal
-        </Button>
+        <div className="flex items-center gap-2">
+          <select
+            value={quickScheduleByEmployee[row.original.employeeId] ?? row.original.scheduleId ?? ""}
+            onChange={(event) =>
+              setQuickScheduleByEmployee((current) => ({
+                ...current,
+                [row.original.employeeId]: event.target.value,
+              }))
+            }
+            className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+          >
+            <option value="">Pilih shift</option>
+            {scheduleOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.code}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            className="h-8 bg-teal-600 text-xs hover:bg-teal-700"
+            onClick={() => handleQuickAssign(row.original)}
+          >
+            Terapkan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs font-semibold border-slate-200 hover:border-teal-300 hover:text-teal-700 hover:bg-teal-50 transition-colors"
+            onClick={() => openDialog(row.original)}
+          >
+            Detail
+          </Button>
+        </div>
       ),
     },
   ];
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-2">
-        <Button
-          type="button"
-          variant={activeTab === "SCHEDULER" ? "default" : "outline"}
-          className={activeTab === "SCHEDULER" ? "bg-teal-600 hover:bg-teal-700" : ""}
-          onClick={() => setActiveTab("SCHEDULER")}
-        >
-          Pengatur Jadwal
-        </Button>
-        <Button
-          type="button"
-          variant={activeTab === "SHIFT" ? "default" : "outline"}
-          className={activeTab === "SHIFT" ? "bg-teal-600 hover:bg-teal-700" : ""}
-          onClick={() => setActiveTab("SHIFT")}
-        >
-          Master Shift
-        </Button>
-      </div>
-
-      {activeTab === "SCHEDULER" ? (
-        <>
-          <div className="space-y-4 mb-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter size={16} className="text-teal-500" />
-                <h2 className="text-sm font-semibold text-slate-900">Filter Tim</h2>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-                <select
-                  value={branchFilter}
-                  onChange={(event) => setBranchFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                >
-                  <option value="">Semua cabang</option>
-                  {branchOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={divisionFilter}
-                  onChange={(event) => setDivisionFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                >
-                  <option value="">Semua divisi</option>
-                  {divisionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={positionFilter}
-                  onChange={(event) => setPositionFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                >
-                  <option value="">Semua jabatan</option>
-                  {positionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={groupFilter}
-                  onChange={(event) => setGroupFilter(event.target.value)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                >
-                  <option value="">Semua kelompok</option>
-                  {NEW_EMPLOYEE_GROUPS.map((group) => (
-                    <option key={group} value={group}>
-                      {resolveEmployeeGroupLabel(group)}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={resetFilters}
-                    className="h-10 w-10 px-0"
-                    aria-label="Reset Filter"
-                    title="Reset Filter"
+      <>
+          <div className="space-y-2 mb-2">
+              <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Cabang</label>
+                  <select
+                    value={branchFilter}
+                    onChange={(event) => setBranchFilter(event.target.value)}
+                    className="mt-0.5 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
                   >
-                    <FontAwesomeIcon icon={faArrowsRotate} className="h-3.5 w-3.5" />
-                  </Button>
-                  {canBulkAssign && (
-                    <Button type="button" onClick={openBulkDialog} className="h-10 bg-teal-600 hover:bg-teal-700">
-                      Atur Serentak
-                    </Button>
-                  )}
+                    <option value="">Semua cabang</option>
+                    {branchOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Divisi</label>
+                  <select
+                    value={divisionFilter}
+                    onChange={(event) => setDivisionFilter(event.target.value)}
+                    className="mt-0.5 h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                  >
+                    <option value="">Semua divisi</option>
+                    {divisionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tanggal Mulai</label>
+                  <Input
+                    type="date"
+                    className="mt-0.5 h-8 w-full text-xs"
+                    value={matrixStartDate}
+                    onChange={(e) => {
+                      setMatrixStartDate(e.target.value);
+                      if (matrixDate < e.target.value) setMatrixDate(e.target.value);
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Tanggal Selesai</label>
+                  <Input
+                    type="date"
+                    className="mt-0.5 h-8 w-full text-xs"
+                    value={matrixEndDate}
+                    onChange={(e) => {
+                      setMatrixEndDate(e.target.value);
+                      if (matrixDate > e.target.value) setMatrixDate(e.target.value);
+                    }}
+                  />
                 </div>
               </div>
-            </div>
-          </div>
-
-          <DataTable
-            data={filteredTeamMembers as (TeamMember & Record<string, unknown>)[]}
-            columns={columns}
-            searchKey="employeeName"
-            searchPlaceholder="Cari karyawan..."
-          />
-        </>
-      ) : (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900">Master Shift</h2>
-          <form onSubmit={handleShiftSubmit} className="grid gap-3 md:grid-cols-4">
-            <Input
-              value={shiftDraft.name}
-              onChange={(event) => setShiftDraft((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Nama shift"
-            />
-            <Input
-              type="time"
-              value={shiftDraft.startTime}
-              onChange={(event) => setShiftDraft((prev) => ({ ...prev, startTime: event.target.value }))}
-            />
-            <Input
-              type="time"
-              value={shiftDraft.endTime}
-              onChange={(event) => setShiftDraft((prev) => ({ ...prev, endTime: event.target.value }))}
-            />
-            <div className="flex gap-2">
-              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={isPending}>
-                {shiftDraft.id ? "Simpan" : "Tambah"}
-              </Button>
-              <Button type="button" variant="outline" onClick={resetShiftForm} disabled={isPending}>
-                Reset
-              </Button>
-            </div>
-          </form>
-
-          {shiftError && <p className="text-xs text-red-600">{shiftError}</p>}
-          {shiftSuccess && <p className="text-xs text-teal-700">Perubahan master shift berhasil disimpan.</p>}
-
-          <div className="space-y-2">
-            {shiftMasters.map((shift) => (
-              <div key={shift.id} className="rounded-lg border border-slate-200 px-3 py-2 flex items-center justify-between">
-                <div className="text-sm">
-                  <p className="font-semibold text-slate-900">{shift.name}</p>
-                  <p className="text-xs text-slate-500">{shift.startTime} - {shift.endTime}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => startEditShift(shift)}>
-                    Edit
-                  </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteShift(shift.id)}>
-                    Hapus
-                  </Button>
-                </div>
+              <div className="mb-2 flex items-center gap-2">
+                <select
+                  value={matrixScheduleId}
+                  onChange={(e) => setMatrixScheduleId(e.target.value)}
+                  className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                >
+                  <option value="">Pilih shift massal</option>
+                  {scheduleOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.code}</option>
+                  ))}
+                </select>
+                <Button type="button" size="sm" className="h-8 bg-teal-600 hover:bg-teal-700 text-xs" onClick={() => void applySelectedByDate()}>
+                  Terapkan ke Terpilih
+                </Button>
               </div>
-            ))}
+              {matrixError ? <p className="text-xs text-red-600">{matrixError}</p> : null}
+              {matrixSuccess ? <p className="text-xs text-teal-700">{matrixSuccess}</p> : null}
+              {matrixStartDate > matrixEndDate ? (
+                <p className="text-xs text-red-600">Tanggal selesai harus sama atau setelah tanggal mulai.</p>
+              ) : null}
+              <div className="overflow-x-auto rounded-lg border border-slate-200 mt-2">
+                <table className="min-w-max text-xs">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="sticky left-0 z-10 border-b border-r bg-slate-50 px-2 py-2 text-left">Karyawan</th>
+                      {periodDates.map((dateKey) => (
+                        <th key={dateKey} className="border-b border-r px-2 py-2 text-center">
+                          {dateKey.slice(8, 10)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTeamMembers.map((member) => (
+                      <tr key={member.employeeId} className="border-b">
+                        <td className="sticky left-0 z-10 border-r bg-white px-2 py-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(selectedEmployeeIds[member.employeeId])}
+                              onChange={(e) => setSelectedEmployeeIds((s) => ({ ...s, [member.employeeId]: e.target.checked }))}
+                            />
+                            <span className="whitespace-nowrap">{member.employeeName}</span>
+                          </label>
+                        </td>
+                        {periodDates.map((dateKey) => {
+                          const selectedScheduleId = resolveScheduleAtDate(member.employeeId, dateKey);
+                          return (
+                            <td key={`${member.employeeId}-${dateKey}`} className="border-r px-1 py-1">
+                              <select
+                                defaultValue={selectedScheduleId}
+                                onChange={(e) => void applySingleCell(member.employeeId, dateKey, e.target.value)}
+                                className="h-7 w-[74px] rounded border border-slate-200 bg-white px-1 text-[10px]"
+                              >
+                                <option value="">OFF</option>
+                                {scheduleOptions.map((opt) => (
+                                  <option key={opt.id} value={opt.id}>{opt.code}</option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
+            {quickSuccess ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {quickSuccess}
+              </div>
+            ) : null}
+            {quickError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {quickError}
+              </div>
+            ) : null}
           </div>
-        </div>
-      )}
+
+      </>
 
       <Dialog open={scheduleDetailOpen} onOpenChange={(open) => !open && closeScheduleDetail()}>
         <DialogContent className="max-w-5xl">

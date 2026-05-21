@@ -1,8 +1,8 @@
 import { getMyDashboard } from "@/server/actions/me";
 import { db } from "@/lib/db";
-import { employeeAlerts, leaveQuotas } from "@/lib/db/schema/hr";
+import { attendanceTickets, employeeAlerts, employeeAttendanceRecords } from "@/lib/db/schema/hr";
 import { buildPayslipBreakdown } from "@/server/payroll-engine/build-payslip-breakdown";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import Link from "next/link";
 import {
   Activity,
@@ -30,6 +30,55 @@ function formatPercent(value: string | number | null | undefined): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(num)) return "—";
   return `${num.toFixed(1)}%`;
+}
+
+function getCurrentPayrollPeriodUTC() {
+  const jakartaNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  const year = jakartaNow.getUTCFullYear();
+  const month = jakartaNow.getUTCMonth();
+  const day = jakartaNow.getUTCDate();
+
+  if (day >= 26) {
+    return {
+      periodStart: new Date(Date.UTC(year, month, 26)),
+      periodEnd: new Date(Date.UTC(month === 11 ? year + 1 : year, month === 11 ? 0 : month + 1, 25)),
+    };
+  }
+
+  const prevMonth = month === 0 ? 11 : month - 1;
+  const prevYear = month === 0 ? year - 1 : year;
+  return {
+    periodStart: new Date(Date.UTC(prevYear, prevMonth, 26)),
+    periodEnd: new Date(Date.UTC(year, month, 25)),
+  };
+}
+
+function formatPeriodShort(start: Date, end: Date) {
+  const startDay = String(start.getUTCDate()).padStart(2, "0");
+  const startMonth = String(start.getUTCMonth() + 1).padStart(2, "0");
+  const endDay = String(end.getUTCDate()).padStart(2, "0");
+  const endMonth = String(end.getUTCMonth() + 1).padStart(2, "0");
+  return `${startDay}/${startMonth} - ${endDay}/${endMonth}`;
+}
+
+type LeaveQuotaView = {
+  id: string;
+  employeeId: string;
+  year: number;
+  monthlyQuotaTotal: number;
+  monthlyQuotaUsed: number;
+  annualQuotaTotal: number;
+  annualQuotaUsed: number;
+};
+
+function addYearsUtc(dateValue: Date, years: number) {
+  return new Date(Date.UTC(dateValue.getUTCFullYear() + years, dateValue.getUTCMonth(), dateValue.getUTCDate()));
+}
+
+function isMissingTicketTypeEnumValueError(error: unknown) {
+  const err = error as { message?: string; cause?: { message?: string } };
+  const message = `${err.message ?? ""} ${err.cause?.message ?? ""}`.toLowerCase();
+  return message.includes("invalid input value for enum") && message.includes("ticket_type");
 }
 
 function StatCard({
@@ -115,7 +164,23 @@ export default async function EmployeeDashboard() {
 
   // Fetch leave quota
   const currentYear = new Date().getFullYear();
-  let leaveQuota = null;
+  const { periodStart, periodEnd } = getCurrentPayrollPeriodUTC();
+  let leaveQuota: LeaveQuotaView | null = null;
+  let leavePolicy = {
+    eligible: false,
+    reason: "Belum memenuhi syarat cuti (lulus training minimal 1 tahun).",
+    monthlyUsed: 0,
+    annualUsed: 0,
+    monthlyTotal: 1,
+    annualTotal: 3,
+  };
+  let attendanceSummary = {
+    workingDays: 0,
+    hadir: 0,
+    izin: 0,
+    alpha: 0,
+    telat: 0,
+  };
   let alerts: {
     id: string;
     alertType: string;
@@ -124,17 +189,125 @@ export default async function EmployeeDashboard() {
     createdAt: Date;
   }[] = [];
   if (employee?.id) {
-    const quotaRows = await db
-      .select()
-      .from(leaveQuotas)
+    const quotaRows = await db.execute(sql`
+      select
+        id,
+        employee_id as "employeeId",
+        year,
+        monthly_quota_total as "monthlyQuotaTotal",
+        monthly_quota_used as "monthlyQuotaUsed",
+        annual_quota_total as "annualQuotaTotal",
+        annual_quota_used as "annualQuotaUsed"
+      from leave_quotas
+      where employee_id = ${employee.id} and year = ${currentYear}
+      limit 1
+    `);
+    leaveQuota = ((quotaRows as unknown as LeaveQuotaView[])[0] ?? null);
+    if (!leaveQuota) {
+      const latestQuotaRows = await db.execute(sql`
+        select
+          id,
+          employee_id as "employeeId",
+          year,
+          monthly_quota_total as "monthlyQuotaTotal",
+          monthly_quota_used as "monthlyQuotaUsed",
+          annual_quota_total as "annualQuotaTotal",
+          annual_quota_used as "annualQuotaUsed"
+        from leave_quotas
+        where employee_id = ${employee.id}
+        order by year desc
+        limit 1
+      `);
+      leaveQuota = ((latestQuotaRows as unknown as LeaveQuotaView[])[0] ?? null);
+    }
+
+    if (employee.trainingGraduationDate) {
+      const eligibleDate = addYearsUtc(employee.trainingGraduationDate, 1);
+      const now = new Date();
+      if (now >= eligibleDate) {
+        leavePolicy.eligible = true;
+        leavePolicy.reason = "";
+
+        let monthlyUsedRow: { cnt: number | string } | undefined;
+        try {
+          [monthlyUsedRow] = await db
+            .select({ cnt: count() })
+            .from(attendanceTickets)
+            .where(
+              and(
+                eq(attendanceTickets.employeeId, employee.id),
+                eq(attendanceTickets.ticketType, "CUTI_BULANAN"),
+                inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"]),
+                gte(attendanceTickets.startDate, periodStart),
+                lte(attendanceTickets.startDate, periodEnd)
+              )
+            );
+        } catch (error) {
+          if (!isMissingTicketTypeEnumValueError(error)) throw error;
+          monthlyUsedRow = { cnt: 0 };
+        }
+
+        const yearStart = new Date(Date.UTC(currentYear, 0, 1));
+        const yearEnd = new Date(Date.UTC(currentYear, 11, 31));
+        let annualUsedRow: { cnt: number | string } | undefined;
+        try {
+          [annualUsedRow] = await db
+            .select({ cnt: count() })
+            .from(attendanceTickets)
+            .where(
+              and(
+                eq(attendanceTickets.employeeId, employee.id),
+                eq(attendanceTickets.ticketType, "CUTI_TAHUNAN"),
+                inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"]),
+                gte(attendanceTickets.startDate, yearStart),
+                lte(attendanceTickets.startDate, yearEnd)
+              )
+            );
+        } catch (error) {
+          if (!isMissingTicketTypeEnumValueError(error)) throw error;
+          annualUsedRow = { cnt: 0 };
+        }
+
+        leavePolicy.monthlyUsed = Number(monthlyUsedRow?.cnt ?? 0);
+        leavePolicy.annualUsed = Number(annualUsedRow?.cnt ?? 0);
+      } else {
+        leavePolicy.reason = `Cuti aktif setelah ${eligibleDate.toISOString().slice(0, 10)}.`;
+      }
+    } else {
+      leavePolicy.reason = "Tanggal lulus training belum tersedia.";
+    }
+    const attendanceRows = await db
+      .select({
+        attendanceStatus: employeeAttendanceRecords.attendanceStatus,
+        punctualityStatus: employeeAttendanceRecords.punctualityStatus,
+      })
+      .from(employeeAttendanceRecords)
       .where(
         and(
-          eq(leaveQuotas.employeeId, employee.id),
-          eq(leaveQuotas.year, currentYear)
+          eq(employeeAttendanceRecords.employeeId, employee.id),
+          gte(employeeAttendanceRecords.attendanceDate, periodStart),
+          lte(employeeAttendanceRecords.attendanceDate, periodEnd)
         )
-      )
-      .limit(1);
-    leaveQuota = quotaRows[0] ?? null;
+      );
+
+    let workingDays = 0;
+    const cursor = new Date(periodStart);
+    while (cursor <= periodEnd) {
+      if (cursor.getUTCDay() !== 0) workingDays += 1;
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    attendanceSummary = attendanceRows.reduce(
+      (acc, row) => {
+        if (row.attendanceStatus === "HADIR") acc.hadir += 1;
+        if (row.attendanceStatus === "IZIN") acc.izin += 1;
+        if (row.attendanceStatus === "ALPA") acc.alpha += 1;
+        if (row.punctualityStatus === "TELAT") acc.telat += 1;
+        return acc;
+      },
+      { workingDays, hadir: 0, izin: 0, alpha: 0, telat: 0 }
+    );
+
     alerts = await db
       .select({
         id: employeeAlerts.id,
@@ -176,6 +349,7 @@ export default async function EmployeeDashboard() {
   const breakdownMeta = (latestPayroll?.breakdown ?? {}) as {
     unpaidLeaveDeductionAmount?: number;
     incidentDeductionAmount?: number;
+    izinJamDeductionAmount?: number;
     manualAdjustmentAmount?: number;
   };
 
@@ -197,6 +371,7 @@ export default async function EmployeeDashboard() {
             breakdownMeta.incidentDeductionAmount ?? Number(latestPayroll.incidentDeductionAmount)
           ),
           unpaidLeaveDeductionAmount: Number(breakdownMeta.unpaidLeaveDeductionAmount ?? 0),
+          izinJamDeductionAmount: Number(breakdownMeta.izinJamDeductionAmount ?? 0),
           manualAdjustmentAmount: Number(
             breakdownMeta.manualAdjustmentAmount ?? Number(latestPayroll.manualAdjustmentAmount)
           ),
@@ -241,6 +416,24 @@ export default async function EmployeeDashboard() {
                 : "Tidak ada catatan"
             }
             icon={AlertTriangle}
+          />
+        </div>
+      </section>
+
+      <section>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+          Statistik Kehadiran Periode Berjalan
+        </h3>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <StatCard label="Hadir / Hari Kerja" value={`${attendanceSummary.hadir} / ${attendanceSummary.workingDays}`} icon={Calendar} />
+          <StatCard label="Izin" value={attendanceSummary.izin} icon={Ticket} />
+          <StatCard label="Alpha" value={attendanceSummary.alpha} icon={XCircle} />
+          <StatCard label="Telat" value={attendanceSummary.telat} icon={Clock} />
+          <StatCard
+            label="Periode"
+            value={formatPeriodShort(periodStart, periodEnd)}
+            sub={`${periodStart.getUTCFullYear()}`}
+            icon={Activity}
           />
         </div>
       </section>
@@ -333,16 +526,16 @@ export default async function EmployeeDashboard() {
             </Link>
           </div>
 
-          {leaveQuota ? (
+          {leavePolicy.eligible ? (
             <div className="space-y-5">
               {/* Monthly quota */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Kuota Bulanan
+                    Jatah Cuti Bulanan
                   </span>
                   <span className="text-xs font-bold text-slate-800">
-                    {leaveQuota.monthlyQuotaUsed} / {leaveQuota.monthlyQuotaTotal} digunakan
+                    {leavePolicy.monthlyUsed} / {leavePolicy.monthlyTotal} digunakan
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2">
@@ -351,8 +544,8 @@ export default async function EmployeeDashboard() {
                     style={{
                       width: `${Math.min(
                         100,
-                        leaveQuota.monthlyQuotaTotal > 0
-                          ? (leaveQuota.monthlyQuotaUsed / leaveQuota.monthlyQuotaTotal) * 100
+                        leavePolicy.monthlyTotal > 0
+                          ? (leavePolicy.monthlyUsed / leavePolicy.monthlyTotal) * 100
                           : 0
                       )}%`,
                     }}
@@ -361,7 +554,7 @@ export default async function EmployeeDashboard() {
                 <p className="text-xs text-slate-400 mt-1">
                   Sisa:{" "}
                   <span className="font-semibold text-slate-600">
-                    {leaveQuota.monthlyQuotaTotal - leaveQuota.monthlyQuotaUsed} hari
+                    {Math.max(0, leavePolicy.monthlyTotal - leavePolicy.monthlyUsed)} kali
                   </span>
                 </p>
               </div>
@@ -370,10 +563,10 @@ export default async function EmployeeDashboard() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Kuota Tahunan
+                    Jatah Cuti Tahunan
                   </span>
                   <span className="text-xs font-bold text-slate-800">
-                    {leaveQuota.annualQuotaUsed} / {leaveQuota.annualQuotaTotal} digunakan
+                    {leavePolicy.annualUsed} / {leavePolicy.annualTotal} digunakan
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2">
@@ -382,8 +575,8 @@ export default async function EmployeeDashboard() {
                     style={{
                       width: `${Math.min(
                         100,
-                        leaveQuota.annualQuotaTotal > 0
-                          ? (leaveQuota.annualQuotaUsed / leaveQuota.annualQuotaTotal) * 100
+                        leavePolicy.annualTotal > 0
+                          ? (leavePolicy.annualUsed / leavePolicy.annualTotal) * 100
                           : 0
                       )}%`,
                     }}
@@ -392,18 +585,18 @@ export default async function EmployeeDashboard() {
                 <p className="text-xs text-slate-400 mt-1">
                   Sisa:{" "}
                   <span className="font-semibold text-slate-600">
-                    {leaveQuota.annualQuotaTotal - leaveQuota.annualQuotaUsed} hari
+                    {Math.max(0, leavePolicy.annualTotal - leavePolicy.annualUsed)} kali
                   </span>
                 </p>
               </div>
 
               <p className="text-xs text-slate-400 pt-1 border-t border-slate-100">
-                Tahun {leaveQuota.year}
+                Bulanan reset tiap tanggal 26 · Tahunan reset tiap 1 Januari
               </p>
             </div>
           ) : (
             <p className="text-sm text-slate-400 text-center py-6">
-              Data kuota cuti untuk tahun {currentYear} belum tersedia.
+              {leavePolicy.reason}
             </p>
           )}
         </div>

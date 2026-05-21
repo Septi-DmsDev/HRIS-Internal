@@ -6,6 +6,7 @@ import { getEmployeeGroupConfigs } from "@/server/actions/employee-group-configs
 import { getGrades } from "@/server/actions/grades";
 import { getPointCatalogOverview } from "@/server/actions/point-catalog";
 import { getPositions } from "@/server/actions/positions";
+import { getWorkShiftMasters } from "@/server/actions/work-schedules";
 import BranchesTable, { type BranchRow } from "./branches/BranchesTable";
 import CatalogPoinClient, {
   type PerformanceCatalogEntryRow,
@@ -19,10 +20,11 @@ import EmployeeGroupConfigsTable, {
 } from "./employee-groups/EmployeeGroupConfigsTable";
 import GradesTable, { type GradeRow } from "./grades/GradesTable";
 import PositionsTable, { type PositionRow } from "./positions/PositionsTable";
+import MasterShiftClient, { type WorkShiftRow } from "./MasterShiftClient";
 import type { UserRole } from "@/types";
 
 export default async function MasterPage() {
-  const [roleRow, branches, divisions, positions, grades, employeeGroupConfigs, overview] = await Promise.all([
+  const [roleRow, branches, divisions, positions, grades, employeeGroupConfigs, overview, shifts] = await Promise.all([
     getCurrentUserRoleRow(),
     getBranches(),
     getDivisions(),
@@ -30,6 +32,7 @@ export default async function MasterPage() {
     getGrades(),
     getEmployeeGroupConfigs(),
     getPointCatalogOverview(),
+    getWorkShiftMasters(),
   ]);
 
   const branchRows: BranchRow[] = branches.map((branch) => ({
@@ -94,6 +97,25 @@ export default async function MasterPage() {
     isActive: config.isActive,
   }));
 
+  const shiftRows: WorkShiftRow[] = shifts.map((shift) => ({
+    id: shift.id,
+    code: shift.code,
+    name: shift.name,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    breakStart: shift.breakStart ?? null,
+    breakEnd: shift.breakEnd ?? null,
+    checkOutStart: shift.checkOutStart ?? null,
+    checkInToleranceMinutes: shift.checkInToleranceMinutes,
+    breakToleranceMinutes: shift.breakToleranceMinutes,
+    checkOutToleranceMinutes: shift.checkOutToleranceMinutes,
+    isOvernight: shift.isOvernight,
+    applicableDivisionCodes: shift.applicableDivisionCodes ?? [],
+    notes: shift.notes ?? "",
+    sortOrder: shift.sortOrder,
+    isActive: shift.isActive,
+  }));
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="catalog">
@@ -104,6 +126,7 @@ export default async function MasterPage() {
           <TabsTrigger value="positions">Jabatan</TabsTrigger>
           <TabsTrigger value="grades">Grade</TabsTrigger>
           <TabsTrigger value="employee-groups">Kelompok Karyawan</TabsTrigger>
+          <TabsTrigger value="master-shift">Master Shift</TabsTrigger>
         </TabsList>
 
         <TabsContent value="catalog" className="space-y-4">
@@ -132,6 +155,10 @@ export default async function MasterPage() {
 
         <TabsContent value="employee-groups" className="space-y-4">
           <EmployeeGroupConfigsTable data={employeeGroupRows} />
+        </TabsContent>
+
+        <TabsContent value="master-shift" className="space-y-4">
+          <MasterShiftClient shifts={shiftRows} />
         </TabsContent>
       </Tabs>
     </div>

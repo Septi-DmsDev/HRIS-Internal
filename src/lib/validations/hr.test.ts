@@ -43,4 +43,53 @@ describe("createTicketSchema", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("accepts new ticket types from updated policy", () => {
+    const result = createTicketSchema.safeParse({
+      employeeId: "",
+      ticketType: "CUTI_TAHUNAN",
+      startDate: "2026-05-10",
+      endDate: "2026-05-10",
+      reason: "Keperluan keluarga",
+      attachmentUrl: "",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("requires izinHours for IZIN_JAM", () => {
+    const missing = createTicketSchema.safeParse({
+      employeeId: "",
+      ticketType: "IZIN_JAM",
+      startDate: "2026-05-10",
+      endDate: "2026-05-10",
+      reason: "Keperluan mendadak",
+      attachmentUrl: "",
+    });
+    expect(missing.success).toBe(false);
+
+    const valid = createTicketSchema.safeParse({
+      employeeId: "",
+      ticketType: "IZIN_JAM",
+      startDate: "2026-05-10",
+      endDate: "2026-05-10",
+      reason: "Keperluan mendadak",
+      attachmentUrl: "",
+      izinHours: 3,
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it("rejects IZIN_JAM with hours outside 1-8 range", () => {
+    const tooMany = createTicketSchema.safeParse({
+      employeeId: "",
+      ticketType: "IZIN_JAM",
+      startDate: "2026-05-10",
+      endDate: "2026-05-10",
+      reason: "Keperluan mendadak",
+      attachmentUrl: "",
+      izinHours: 9,
+    });
+    expect(tooMany.success).toBe(false);
+  });
 });

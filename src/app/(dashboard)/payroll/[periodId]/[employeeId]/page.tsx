@@ -78,6 +78,7 @@ export default async function PayrollEmployeeDetailPage({ params }: PageProps) {
     approvedPaidLeaveDays?: number;
     unpaidLeaveDeductionAmount?: number;
     incidentDeductionAmount?: number;
+    izinJamDeductionAmount?: number;
     manualAdjustmentAmount?: number;
     scheduledWorkDays?: number;
     activeEmploymentDays?: number;
@@ -121,6 +122,7 @@ export default async function PayrollEmployeeDetailPage({ params }: PageProps) {
     unpaidLeaveDeductionAmount: Number(
       breakdownMeta.unpaidLeaveDeductionAmount ?? 0
     ),
+    izinJamDeductionAmount: Number(breakdownMeta.izinJamDeductionAmount ?? 0),
     manualAdjustmentAmount: Number(
       breakdownMeta.manualAdjustmentAmount ?? Number(detail.manualAdjustmentAmount)
     ),

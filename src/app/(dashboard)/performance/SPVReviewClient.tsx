@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { batchDecideDraftActivities } from "@/server/actions/performance";
-import { formatOneDecimal } from "@/lib/format/number";
+import { formatPointNumber } from "@/lib/format/number";
 import { resolveActivityJobIdLabel } from "@/lib/performance/job-id";
 
 export type SpvActivityRow = {
@@ -191,7 +191,7 @@ export default function SPVReviewClient({ activities }: Props) {
                   </td>
                   <td className="px-4 py-3 text-slate-700">{group.workDate}</td>
                   <td className="px-4 py-3 text-center tabular-nums text-slate-700">{group.activities.length}</td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">{formatOneDecimal(group.totalPoints)}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">{formatPointNumber(group.totalPoints)}</td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_VARIANT[group.status] ?? "outline"}>
                       {STATUS_LABEL[group.status] ?? group.status}
@@ -243,15 +243,15 @@ export default function SPVReviewClient({ activities }: Props) {
                         </td>
                         <td className="px-3 py-2.5 text-slate-900">{a.workNameSnapshot}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{a.quantity}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{a.pointValueSnapshot}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900">{a.totalPoints}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatPointNumber(a.pointValueSnapshot)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatPointNumber(a.totalPoints)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="border-t border-slate-200 bg-slate-50">
                     <tr>
                       <td colSpan={5} className="px-3 py-2 text-right text-sm font-semibold text-slate-700">Total</td>
-                      <td className="px-3 py-2 text-right font-bold tabular-nums text-teal-600">{formatOneDecimal(detailGroup.totalPoints)}</td>
+                      <td className="px-3 py-2 text-right font-bold tabular-nums text-teal-600">{formatPointNumber(detailGroup.totalPoints)}</td>
                     </tr>
                   </tfoot>
                 </table>
