@@ -232,10 +232,10 @@ const ACTIVITY_STATUS_LABEL: Record<PerformanceActivityRow["status"], string> = 
   DRAFT: "Draft",
   DIAJUKAN: "Diajukan",
   DIAJUKAN_ULANG: "Diajukan Ulang",
-  DITOLAK_SPV: "Ditolak SPV",
+  DITOLAK_SPV: "Ditolak HRD",
   REVISI_TW: "Revisi TW",
-  DISETUJUI_SPV: "Disetujui SPV",
-  OVERRIDE_HRD: "Override HRD",
+  DISETUJUI_SPV: "Disetujui",
+  OVERRIDE_HRD: "Disetujui HRD",
   DIKUNCI_PAYROLL: "Dikunci Payroll",
 };
 
@@ -591,7 +591,7 @@ export default function PerformanceCatalogClient({
       setDraftDecisionNotes("");
       setLastResult(
         draftDecision.action === "approve"
-          ? `Draft harian ${draftDecision.group.employeeName} tanggal ${draftDecision.group.workDate} berhasil dioverride.`
+          ? `Draft harian ${draftDecision.group.employeeName} tanggal ${draftDecision.group.workDate} berhasil disetujui.`
           : `Draft harian ${draftDecision.group.employeeName} tanggal ${draftDecision.group.workDate} berhasil ditolak.`
       );
       router.refresh();
@@ -948,8 +948,7 @@ export default function PerformanceCatalogClient({
           const isMutable = ["DRAFT", "DITOLAK_SPV", "REVISI_TW"].includes(entry.status);
           const isApprovable = ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
           const isDeletable = ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
-          const canApprove =
-            role === "SPV" || role === "KABAG" || role === "HRD" || role === "SUPER_ADMIN";
+          const canApprove = role === "HRD" || role === "SUPER_ADMIN";
 
           return (
             <div className="flex flex-wrap gap-1.5">
@@ -1011,13 +1010,13 @@ export default function PerformanceCatalogClient({
                   <Button
                     type="button"
                     size="icon"
-                    title={role === "SPV" || role === "KABAG" ? "Setujui" : "Override"}
-                    aria-label={role === "SPV" || role === "KABAG" ? "Setujui" : "Override"}
+                    title="Setujui HRD"
+                    aria-label="Setujui HRD"
                     onClick={() =>
                       setDecisionState({
                         action: "approve",
                         activityId: entry.id,
-                        title: role === "SPV" || role === "KABAG" ? "Setujui Aktivitas" : "Override HRD",
+                        title: "Setujui Aktivitas",
                         rowLabel: `${entry.employeeName} · ${entry.workNameSnapshot}`,
                       })
                     }
@@ -1157,7 +1156,7 @@ export default function PerformanceCatalogClient({
             <div>
               <h2 className="text-base font-semibold text-slate-800">Aktivitas Harian</h2>
               <p className="text-sm text-slate-500">
-                Input total poin harian final per karyawan, subject to approval SPV/HRD.
+                Input total poin harian final per karyawan, subject to approval HRD.
               </p>
             </div>
             <div className="flex gap-2">
@@ -1190,7 +1189,7 @@ export default function PerformanceCatalogClient({
           {isOverrideRole ? (
             <div className="space-y-2 rounded-lg border border-slate-200 p-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-slate-800">Draft Harian Diajukan (Override HRD/Admin)</p>
+                <p className="text-sm font-medium text-slate-800">Draft Harian Diajukan — Menunggu Persetujuan HRD</p>
                 <p className="text-xs text-slate-500">{overrideDraftGroups.length} draft</p>
               </div>
               <Input
@@ -1243,7 +1242,7 @@ export default function PerformanceCatalogClient({
                                   setDraftDecision({ action: "approve", group });
                                 }}
                               >
-                                Override
+                                Setujui
                               </Button>
                               <Button
                                 size="sm"
@@ -1505,7 +1504,7 @@ export default function PerformanceCatalogClient({
       <Dialog open={draftDecision !== null} onOpenChange={(open) => !open && setDraftDecision(null)}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{draftDecision?.action === "approve" ? "Override Draft Harian" : "Tolak Draft Harian"}</DialogTitle>
+            <DialogTitle>{draftDecision?.action === "approve" ? "Setujui Draft Harian" : "Tolak Draft Harian"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
@@ -1533,7 +1532,7 @@ export default function PerformanceCatalogClient({
               onClick={() => void handleBatchDraftDecision()}
               disabled={pending || (draftDecision?.action === "reject" && !draftDecisionNotes.trim())}
             >
-              {pending ? "Memproses..." : draftDecision?.action === "approve" ? "Override Semua" : "Tolak Semua"}
+              {pending ? "Memproses..." : draftDecision?.action === "approve" ? "Setujui Semua" : "Tolak Semua"}
             </Button>
           </DialogFooter>
         </DialogContent>

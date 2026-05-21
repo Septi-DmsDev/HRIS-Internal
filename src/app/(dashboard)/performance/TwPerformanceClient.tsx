@@ -72,9 +72,9 @@ function resolveGroupStatus(entries: TwActivityItem[]): DateGroup["statusType"] 
 }
 
 const STATUS_TEXT: Record<DateGroup["statusType"], string> = {
-  pending: "Menunggu Review",
-  approved: "Disetujui SPV",
-  rejected: "Ditolak SPV",
+  pending: "Menunggu Review HRD",
+  approved: "Disetujui HRD",
+  rejected: "Ditolak HRD",
   locked: "Terkunci",
 };
 
@@ -358,7 +358,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
       setCurrentJobId("");
       setCurrentJobLines([]);
       setEditingDate(null);
-      setSuccess("Draft berhasil dikirim ke SPV untuk review.");
+      setSuccess("Draft berhasil dikirim ke HRD untuk review.");
       setActiveTab("history");
       router.refresh();
     } finally {
@@ -622,7 +622,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
         <TabsContent value="submit" className="space-y-4 pt-2">
           {editingDate && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              Mengedit ulang draft yang ditolak SPV untuk tanggal{" "}
+              Mengedit ulang draft yang ditolak HRD untuk tanggal{" "}
               <strong>{formatDate(editingDate)}</strong>. Ubah isian lalu kirim ulang.
             </div>
           )}
