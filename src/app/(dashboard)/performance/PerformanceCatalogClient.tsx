@@ -1516,18 +1516,18 @@ export default function PerformanceCatalogClient({
       </Dialog>
 
       <Dialog open={draftDetailGroup !== null} onOpenChange={(open) => !open && setDraftDetailGroup(null)}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Rincian Draft Harian - {draftDetailGroup?.employeeName}</DialogTitle>
           </DialogHeader>
           {draftDetailGroup ? (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-500">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <p className="flex-shrink-0 text-xs text-slate-500">
                 {draftDetailGroup.employeeCode} · {draftDetailGroup.employeeDivisionName} · Tgl Kerja: {draftDetailGroup.workDate} · Diajukan: {draftDetailGroup.submittedAt}
               </p>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
+                  <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">No</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Job ID</th>
@@ -1555,7 +1555,7 @@ export default function PerformanceCatalogClient({
               </div>
             </div>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0">
             <Button type="button" variant="outline" onClick={() => setDraftDetailGroup(null)}>
               Tutup
             </Button>

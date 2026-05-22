@@ -26,6 +26,25 @@ import { Input } from "@/components/ui/input";
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useEffect, useState } from "react";
 
+type PersistedTableState = {
+  columnFilters?: ColumnFiltersState;
+  globalFilter?: string;
+  sorting?: SortingState;
+  pagination?: PaginationState;
+};
+
+function readPersistedTableState(stateKey?: string): PersistedTableState | null {
+  if (!stateKey || typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(stateKey);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedTableState;
+  } catch {
+    return null;
+  }
+}
+
 type DataTableProps<T extends Record<string, unknown>> = {
   data: T[];
   columns: ColumnDef<T>[];
@@ -45,34 +64,17 @@ export function DataTable<T extends Record<string, unknown>>({
   toolbarSlot,
   stateKey,
 }: DataTableProps<T>) {
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 });
+  const persistedState = readPersistedTableState(stateKey);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => persistedState?.columnFilters ?? []);
+  const [globalFilter, setGlobalFilter] = useState(() => persistedState?.globalFilter ?? "");
+  const [sorting, setSorting] = useState<SortingState>(() => persistedState?.sorting ?? []);
+  const [pagination, setPagination] = useState<PaginationState>(
+    () => persistedState?.pagination ?? { pageIndex: 0, pageSize: 20 }
+  );
 
   useEffect(() => {
     if (!stateKey) return;
-    try {
-      const raw = sessionStorage.getItem(stateKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as {
-        columnFilters?: ColumnFiltersState;
-        globalFilter?: string;
-        sorting?: SortingState;
-        pagination?: PaginationState;
-      };
-      if (parsed.columnFilters) setColumnFilters(parsed.columnFilters);
-      if (typeof parsed.globalFilter === "string") setGlobalFilter(parsed.globalFilter);
-      if (parsed.sorting) setSorting(parsed.sorting);
-      if (parsed.pagination) setPagination(parsed.pagination);
-    } catch {
-      // Ignore invalid persisted state.
-    }
-  }, [stateKey]);
-
-  useEffect(() => {
-    if (!stateKey) return;
-    sessionStorage.setItem(
+    window.sessionStorage.setItem(
       stateKey,
       JSON.stringify({
         columnFilters,
@@ -109,6 +111,7 @@ export function DataTable<T extends Record<string, unknown>>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    autoResetPageIndex: false,
     state: { columnFilters, globalFilter, sorting, pagination },
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
@@ -120,6 +123,16 @@ export function DataTable<T extends Record<string, unknown>>({
   const totalCount = data.length;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageCount = table.getPageCount();
+
+  useEffect(() => {
+    if (pageCount === 0) return;
+    if (pageIndex < pageCount) return;
+
+    setPagination((current) => ({
+      ...current,
+      pageIndex: Math.max(pageCount - 1, 0),
+    }));
+  }, [pageCount, pageIndex]);
 
   const showToolbar = searchKey !== undefined || globalSearch || toolbarSlot !== undefined;
 
