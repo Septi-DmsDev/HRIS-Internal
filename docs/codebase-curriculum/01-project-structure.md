@@ -56,9 +56,12 @@ src/
 | `src/app/(dashboard)/employees/*` | list, form, detail profil karyawan |
 | `src/app/(dashboard)/positioning/*` | mutasi massal cabang/divisi/jabatan/grade/kelompok |
 | `src/app/(dashboard)/divisi/*` | route kompatibilitas lama yang redirect ke `/positioning` |
+| `src/app/(dashboard)/history/*` | audit trail lintas modul |
 | `src/app/(dashboard)/master/branches/*` | CRUD cabang |
 | `src/app/(dashboard)/master/divisions/*` | CRUD divisi |
 | `src/app/(dashboard)/master/positions/*` | CRUD jabatan |
+| `src/app/(dashboard)/master/employee-groups/*` | konfigurasi kelompok karyawan |
+| `src/app/(dashboard)/master/catalogpoin/*` | katalog poin versi lama / sinkronisasi workbook |
 | `src/app/(dashboard)/master/grades/*` | CRUD grade dan compensation config |
 | `src/app/(dashboard)/master/work-schedules/*` | CRUD jadwal kerja dan master shift |
 | `src/app/(dashboard)/performance/*` | katalog poin, aktivitas, monthly performance |
@@ -66,12 +69,14 @@ src/
 | `src/app/(dashboard)/tickets/*` | ticket izin/sakit/cuti |
 | `src/app/(dashboard)/ticketingapproval/*` | antrian approval tiket dan histori review |
 | `src/app/(dashboard)/absensi/*` | input manual absensi kehadiran/disiplin |
+| `src/app/(dashboard)/overtime/*` | request overtime dan draft entry |
 | `src/app/(dashboard)/reviews/*` | review + incident |
 | `src/app/(dashboard)/payroll/*` | workspace payroll, detail, export, payslip |
 | `src/app/(dashboard)/finance/*` | finance dashboard |
-| `src/app/(dashboard)/settings/*` | account settings user aktif |
 | `src/app/(dashboard)/schedule/*` | jadwal personal/tim |
 | `src/app/(dashboard)/scheduler/*` | scheduler operational view |
+| `src/app/(dashboard)/settings/*` | account settings user aktif |
+| `src/app/(dashboard)/teamperformance/*` | tampilan performa tim |
 | `src/app/(dashboard)/users/*` | role/user management |
 
 Route handler aktif:
@@ -79,6 +84,8 @@ Route handler aktif:
 | Path | Fungsi |
 |---|---|
 | `src/app/(dashboard)/payroll/[periodId]/export.xlsx/route.ts` | export payroll XLSX |
+| `src/app/(dashboard)/payroll/[periodId]/rekap.xlsx/route.ts` | export rekap payroll XLSX |
+| `src/app/(dashboard)/payroll/[periodId]/slips.pdf/route.ts` | export bulk slips PDF |
 | `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | payslip PDF |
 | `src/app/(dashboard)/employees/export.xlsx/route.ts` | export data karyawan XLSX |
 | `src/app/api/integrations/adms/attendance/route.ts` | ingest sinkronisasi absensi dari mesin ADMS/fingerprint |

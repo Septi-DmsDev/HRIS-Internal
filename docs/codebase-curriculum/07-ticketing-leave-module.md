@@ -2,7 +2,7 @@
 
 ## Status
 
-`status: tersedia, perlu hardening audit/integrasi attendance`
+`status: tersedia, perlu hardening audit/integrasi attendance/overtime`
 
 File utama:
 
@@ -17,6 +17,7 @@ Gap yang perlu dibangun:
 
 - audit log khusus keputusan ticket;
 - integrasi lebih kaya dengan attendance/point target engine;
+- penyelarasan dengan overtime request flow;
 - test action untuk quota consume dan scope SPV/KABAG.
 
 ## 1. Tujuan Modul
@@ -75,6 +76,8 @@ Mendefinisikan:
 
 - `attendance_tickets`
 - `leave_quotas`
+- `overtime_requests`
+- `overtime_draft_entries`
 - `employee_reviews`
 - `incident_logs`
 
@@ -103,6 +106,7 @@ Logika penting:
 - `rejectTicket()` mewajibkan alasan penolakan.
 - `cancelTicket()` hanya boleh dilakukan pembuat ticket atau HRD/SUPER_ADMIN selama status belum diproses.
 - `generateLeaveQuota()` hanya HRD/SUPER_ADMIN dan menolak duplicate quota per tahun.
+- overtime diatur lewat `src/server/actions/overtime.ts`, bukan lewat ticket leave.
 
 ### `src/server/ticketing-engine/resolve-leave-quota-eligibility.ts`
 
@@ -125,6 +129,7 @@ Helper ini menghitung kapan karyawan eligible quota berdasarkan tanggal masuk + 
   3. `UNPAID`
 - Ticket `SETENGAH_HARI` tidak otomatis mengonsumsi quota pada flow approve saat ini.
 - Ticket yang sudah diproses tidak bisa dibatalkan normal.
+- overtime request punya placement `BEFORE_SHIFT` / `AFTER_SHIFT` dan dihitung terpisah dari ticket leave.
 
 ## 5. Data yang Dibaca dan Ditulis
 
@@ -132,6 +137,8 @@ Helper ini menghitung kapan karyawan eligible quota berdasarkan tanggal masuk + 
 |---|---|---|---|
 | `attendance_tickets` | ya | ya | tiket dan status approval |
 | `leave_quotas` | ya | ya | kuota leave bulanan/tahunan |
+| `overtime_requests` | ya | ya | request overtime per periode |
+| `overtime_draft_entries` | ya | ya | detail draft overtime |
 | `employees` | ya | tidak | cek masa kerja, divisi, list employee |
 | `divisions` | ya | tidak | label divisi pada list |
 

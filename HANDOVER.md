@@ -1,9 +1,9 @@
 # HRD Dashboard - Handover Document
 
-**Tanggal update:** 2026-05-19  
+**Tanggal update:** 2026-05-22  
 **Branch aktif:** `main`  
 **Remote:** `https://github.com/Septi-DmsDev/HRIS-Internal.git`  
-**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-19
+**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-22
 
 ---
 
@@ -15,7 +15,9 @@ HRD Dashboard internal berbasis Next.js App Router untuk mengelola:
 - manual attendance (`/absensi`)
 - training evaluation
 - ticketing izin/sakit/cuti
+- overtime request dan draft overtime
 - review dan incident
+- history audit lintas modul
 - payroll preview/finalize/paid/locked
 - finance summary
 
@@ -43,6 +45,7 @@ Catatan phase 3 saat ini:
 - salary config, preview, finalize, paid, lock sudah ada
 - finance dashboard sudah ada
 - payslip PDF dan export Excel sudah ada
+- rekap Excel dan bulk slips PDF sudah ada
 - personal self-service access ke slip gaji sudah ada
 - input massal persentase managerial bulanan dari `/performance` sudah ada
 - input manual absensi harian dari `/absensi` sudah ada untuk koneksi awal ke payroll
@@ -63,9 +66,9 @@ Status kerja saat handover ini ditulis:
 - dokumentasi disinkronkan ulang 2026-05-19
 
 Update dokumentasi 2026-05-19:
-- `HANDOVER.md` diperbarui: commits terbaru, fitur baru Finance, rekap.xlsx.
+- `HANDOVER.md` diperbarui: commits terbaru, fitur baru Finance, rekap.xlsx, overtime, dan history.
 - `CLAUDE.md` diperbarui: section Payroll Adjustments ditambah `updatePayrollAdjustment`.
-- `docs/codebase-curriculum/10-payroll-module.md` diperbarui: export rekap, edit adjustment.
+- `docs/codebase-curriculum/10-payroll-module.md` diperbarui: export rekap, slips PDF, overtime, edit adjustment.
 - `docs/codebase-curriculum/00-overview.md` diperbarui: status modul terkini.
 
 ---

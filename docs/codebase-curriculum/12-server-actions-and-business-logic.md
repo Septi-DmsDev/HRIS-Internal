@@ -24,9 +24,11 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 | `performance.ts` | activity workflow, self-service TW, SPV/KABAG queue, monthly performance | performance |
 | `tickets.ts` | ticket workflow + leave quota | ticketing |
 | `attendance.ts` | workspace dan input manual absensi | absensi |
+| `overtime.ts` | workspace overtime, draft submit, decision, division schedule | overtime |
 | `reviews.ts` | review + incident | review |
 | `training.ts` | training evaluation decision | training |
 | `payroll.ts`, `payroll.helpers.ts` | payroll workspace, detail, lifecycle, helper personal access | payroll |
+| `history.ts` | audit trail lintas modul | history |
 
 ## 3. Action Penting per Modul
 
@@ -99,6 +101,20 @@ Rule engine terkait:
 - `calculateMonthlyPointPerformance()`
 - `parseMasterPointWorkbook()`
 
+### Overtime
+
+| Function | Catatan |
+|---|---|
+| `getOvertimeWorkspace` | workspace overtime admin/approver/self-service |
+| `submitOvertimeDraft` | simpan draft overtime beserta detail entry |
+| `submitOvertimeRequest` | ajukan request overtime |
+| `submitSpvOvertimeRequest` | request overtime untuk scope SPV |
+| `scheduleDivisionOvertime` | schedule overtime untuk divisi |
+| `getMyShiftForDate` | helper shift self-service |
+| `getEmployeeShiftForDate` | helper shift employee target |
+| `decideOvertimeRequest` | approve/reject overtime |
+| `deleteOvertimeRequest` | hapus overtime request sesuai status |
+
 ### Point Catalog
 
 | Function | Catatan |
@@ -131,6 +147,10 @@ Helper terkait:
 |---|---|
 | `getAttendanceWorkspace` | workspace absensi harian untuk `SUPER_ADMIN` dan `HRD` |
 | `upsertAttendanceRecord` | input/update absensi manual per karyawan dan tanggal |
+| `submitAttendanceFallbackRequest` | fallback ketika fingerprint gagal |
+| `approveAttendanceFallbackRequest` | review fallback attendance |
+| `rejectAttendanceFallbackRequest` | reject fallback attendance |
+| `overrideAttendancePeriodTotals` | override agregat periode absensi |
 
 Helper terkait:
 
@@ -169,6 +189,12 @@ Helper terkait:
 | `finalizePayroll` | lock result, monthly performance, dan activity terkait |
 | `markPayrollPaid` | transisi paid |
 | `lockPayrollPeriod` | transisi locked |
+
+### History
+
+| Function | Catatan |
+|---|---|
+| `getSystemHistory` | audit trail lintas modul untuk HRD/SUPER_ADMIN |
 
 Rule/helper terkait:
 

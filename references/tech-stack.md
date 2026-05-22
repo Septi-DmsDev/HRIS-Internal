@@ -5,7 +5,7 @@
 **Basis utama:** Next.js terbaru + Supabase/PostgreSQL  
 **Konteks proyek:** Dashboard HRD dengan modul Profiling Karyawan, Manajemen Poin Kinerja, Review Karyawan, Ticketing Izin/Sakit/Cuti, dan Payroll System.
 
-> Catatan penyelarasan code 2026-05-04:
+> Catatan penyelarasan code 2026-05-22:
 > Repo aktual memakai Next.js `16.2.4`, React `19.2.4`, Tailwind CSS v4, Supabase Auth via `@supabase/ssr`, Drizzle ORM, Vitest, route handler PDF/XLSX payroll, `src/proxy.ts` untuk auth redirect, `user_roles.employee_id` untuk self-service, dan `user_role_divisions` untuk SPV/KABAG scope. Bagian di bawah tetap berfungsi sebagai rekomendasi arsitektur, tetapi status implementasi terbaru ada di `docs/codebase-curriculum/00-overview.md`.
 
 ---

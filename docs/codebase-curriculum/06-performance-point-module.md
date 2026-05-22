@@ -18,13 +18,14 @@ File ditemukan:
 
 Gap yang perlu dibangun:
 
-- self-service TEAMWORK untuk input aktivitas,
 - enforcement deadline H+1/H+2/H+1 revisi,
 - audit dan rule tambahan bila activity dibuka ulang setelah payroll.
+- hardening self-service TEAMWORK agar lebih lengkap untuk flow input harian.
 
 Fitur yang sudah ada di code:
 
 - input massal persentase performa managerial bulanan oleh HRD/SUPER_ADMIN untuk role KABAG/SPV/MANAGERIAL.
+- self-service TEAMWORK performance helper sudah ada di action dan route layer.
 
 ## 1. Tujuan Modul
 
@@ -50,6 +51,7 @@ Modul ini mengelola:
 | `src/server/actions/performance.ts` | workspace performance dan workflow aktivitas | UI aktivitas | HRD/SUPER_ADMIN/SPV |
 | `src/app/(dashboard)/performance/page.tsx` | page server | user modul performance | merakit data untuk client |
 | `src/app/(dashboard)/performance/PerformanceCatalogClient.tsx` | UI tab aktivitas/monthly/catalog | user internal | client terbesar kedua |
+| `src/app/(dashboard)/master/catalogpoin/*` | workspace katalog poin legacy | HRD/SUPER_ADMIN | sinkronisasi workbook dan entry catalog |
 
 ## 3. Alur Kerja Modul
 
@@ -191,6 +193,7 @@ Logika penting:
 - generate monthly memakai divisi snapshot per awal periode, bukan divisi aktual harian.
 - hanya status `DISETUJUI_SPV`, `OVERRIDE_HRD`, `DIKUNCI_PAYROLL` yang dihitung ke monthly performance.
 - SPV hanya boleh approve/reject aktivitas divisinya.
+- route `/teamperformance` dipakai untuk tampilan performa tim/self-service TEAMWORK.
 
 ## 6. Data yang Dibaca dan Ditulis
 

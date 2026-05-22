@@ -30,24 +30,25 @@ Project ini adalah dashboard internal HRIS/HRD yang dibangun dengan:
 Fungsi bisnis yang sudah muncul di code:
 
 - login dan session Supabase;
-- user role management, employee login link, dan division scope;
+- user role management, employee login link, multi-division scope, dan history trail;
 - account settings dan schedule;
 - account settings untuk self-service profil enrichment (hobi, riwayat pendidikan, kompetensi);
 - master data cabang/divisi/jabatan/grade/shift/jadwal kerja;
 - profiling karyawan dan histori perubahan;
 - mutasi massal penempatan (cabang/divisi/jabatan/grade/kelompok karyawan);
 - katalog poin, import workbook, dan entry catalog manual;
-- aktivitas harian poin-based (Mitra Kerja, Borongan, Training), batch submit, approval SPV/KABAG, HRD flow;
+- aktivitas harian poin-based (Mitra Kerja, Borongan, Training), batch submit, approval SPV/KABAG, HRD flow, dan self-service TEAMWORK;
 - generate performa bulanan;
 - input massal persentase performa managerial per periode oleh HRD/SUPER_ADMIN;
 - ticketing izin/sakit/cuti dan leave quota;
 - antrian approval tiket untuk SUPER_ADMIN/HRD/SPV/KABAG;
 - input manual absensi untuk bonus fulltime/disiplin payroll;
+- overtime request dan draft overtime;
+- history audit lintas modul;
 - review karyawan dan incident log;
 - evaluasi training;
 - payroll period, salary config, grade compensation, KPI managerial, preview, finalisasi, paid, lock;
-- export Excel payroll;
-- payslip PDF;
+- export Excel payroll, rekap Excel, slips PDF, dan payslip PDF;
 - finance dashboard berbasis payroll result.
 
 ## 3. Arsitektur Singkat
@@ -110,7 +111,9 @@ Employee Link
 | Employee placement | ada | `/positioning` untuk mutasi massal; `/divisi` dipertahankan sebagai redirect kompatibilitas |
 | Performance point | ada, perlu hardening | self-service poin-based ada; input massal managerial ada; deadline H+1/H+2 masih perlu enforcement lengkap |
 | Attendance | ada, manual + ingest API ADMS | `/absensi` untuk input manual, `/api/integrations/adms/attendance` untuk sinkronisasi mesin; dipakai payroll untuk fulltime/disiplin |
+| Overtime | ada | `/overtime` mengelola request overtime, draft entry, approval, dan payroll integration |
 | Ticketing leave | ada, perlu hardening | self-service employee-link ada; quota eligibility memakai quarter helper |
+| History audit | ada | `/history` menggabungkan audit lintas modul untuk HRD/SUPER_ADMIN |
 | Ticket approval queue | ada | `/ticketingapproval` dipakai role approver untuk antrian dan histori approval tiket |
 | Review & incident | ada | review score 5 aspek, validate review, create incident |
 | Training evaluation | ada | keputusan lulus/gagal ada; payroll kini mendukung prorate bonus fulltime/disiplin untuk kelulusan training di tengah periode |

@@ -2,7 +2,7 @@
 
 ## Tujuan
 
-Folder ini adalah kurikulum belajar codebase untuk project HRIS/HRD Dashboard internal. Isinya diselaraskan dengan code aktual repo per 2026-05-04 sehingga bisa dipakai untuk:
+Folder ini adalah kurikulum belajar codebase untuk project HRIS/HRD Dashboard internal. Isinya diselaraskan dengan code aktual repo per 2026-05-22 sehingga bisa dipakai untuk:
 
 - onboarding developer baru,
 - menyamakan pemahaman owner/project lead,
@@ -32,18 +32,18 @@ Urutan baca yang direkomendasikan:
 | `README.md` | Peta baca kurikulum | updated |
 | `00-overview.md` | Ringkasan sistem, status implementasi, relasi modul | updated |
 | `01-project-structure.md` | Struktur repo, route, boundary folder, file inti | updated |
-| `02-auth-and-role-access.md` | Auth, session, role, scope akses | perlu review lanjutan |
-| `03-database-schema.md` | Schema Drizzle dan relasi bisnis | perlu review bila ada migration baru |
+| `02-auth-and-role-access.md` | Auth, session, role, scope akses | updated |
+| `03-database-schema.md` | Schema Drizzle dan relasi bisnis | updated |
 | `04-master-data-module.md` | Cabang, divisi, jabatan, grade, shift, jadwal kerja | perlu review lanjutan |
 | `05-employee-profiling-module.md` | Profil karyawan, histori, detail page | perlu review lanjutan |
-| `06-performance-point-module.md` | Katalog poin, aktivitas harian, performa bulanan | perlu review lanjutan |
-| `07-ticketing-leave-module.md` | Izin/sakit/cuti dan leave quota | perlu review lanjutan |
+| `06-performance-point-module.md` | Katalog poin, aktivitas harian, performa bulanan | updated |
+| `07-ticketing-leave-module.md` | Izin/sakit/cuti, overtime, leave quota | perlu review lanjutan |
 | `08-review-and-incident-module.md` | Review kualitas kerja dan incident | perlu review lanjutan |
 | `09-training-evaluation-module.md` | Evaluasi training berbasis performa | perlu review lanjutan |
-| `10-payroll-module.md` | Period, preview, finalisasi, payslip, finance basis | perlu review lanjutan |
+| `10-payroll-module.md` | Period, preview, finalisasi, payslip, finance basis | updated |
 | `11-ui-components.md` | Layout, reusable UI, table, tabs, dialog | perlu review lanjutan |
 | `12-server-actions-and-business-logic.md` | Ringkasan server action | updated |
-| `13-data-flow-and-user-flow.md` | Alur data dan alur user per modul | perlu review lanjutan |
+| `13-data-flow-and-user-flow.md` | Alur data dan alur user per modul | updated |
 | `14-testing-and-validation.md` | Test yang ada, command, gap test | updated |
 | `15-developer-learning-path.md` | Rencana belajar | perlu review lanjutan |
 | `16-maintenance-checklist.md` | Checklist maintenance dan hotspot | updated |

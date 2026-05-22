@@ -15,11 +15,11 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 | Schema file | Fokus bisnis |
 |---|---|
-| `src/lib/db/schema/auth.ts` | role user dan scope divisi |
+| `src/lib/db/schema/auth.ts` | role user, scope divisi, employee link |
 | `src/lib/db/schema/master.ts` | cabang, divisi, jabatan, grade, kelompok karyawan |
-| `src/lib/db/schema/employee.ts` | profil karyawan, histori, jadwal kerja |
+| `src/lib/db/schema/employee.ts` | profil karyawan, histori, jadwal kerja, shift master, self-service profile |
 | `src/lib/db/schema/point.ts` | katalog poin, aktivitas harian, log approval, performa bulanan |
-| `src/lib/db/schema/hr.ts` | ticketing, leave quota, review, incident |
+| `src/lib/db/schema/hr.ts` | ticketing, leave quota, overtime, attendance, review, incident |
 | `src/lib/db/schema/payroll.ts` | salary config, payroll period, snapshot, result, adjustment, audit |
 
 ## 3. Schema `auth.ts`
@@ -28,7 +28,8 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
-| `user_roles` | `user_id`, `role`, `division_id` | menyimpan role aplikasi dan scope SPV | auth, layout, semua server action |
+| `user_roles` | `user_id`, `role`, `employee_id`, `division_id` | menyimpan role aplikasi dan scope SPV | auth, layout, semua server action |
+| `user_role_divisions` | `user_role_id`, `division_id` | scope aktif SPV/KABAG lintas divisi | auth, layout, scoped action |
 
 ### Enum
 
@@ -40,6 +41,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 - `division_id` → `divisions.id`
 - `division_id = null` dipakai sebagai akses global
+- `user_role_divisions.division_id` → `divisions.id`
 
 ## 4. Schema `master.ts`
 
@@ -79,8 +81,12 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `employee_supervisor_histories` | `previous_supervisor_employee_id`, `new_supervisor_employee_id` | histori atasan | employee |
 | `employee_status_histories` | `previous_employment_status`, `new_employment_status`, `previous_payroll_status`, `new_payroll_status` | histori status kerja/payroll | employee, audit manual |
 | `work_schedules` | `code`, `name`, `description`, `is_active` | template jadwal mingguan | master data, employee, performance, payroll |
-| `work_schedule_days` | `schedule_id`, `day_of_week`, `day_status`, `is_working_day`, `start_time`, `end_time`, `target_points` | detail 7 hari per jadwal | performance target day, payroll scheduled work day |
+| `work_shift_masters` | `code`, `name`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_tolerance_minutes` | master shift dan toleransi absensi | master data, absensi, payroll |
+| `work_schedule_days` | `schedule_id`, `day_of_week`, `day_status`, `is_working_day`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_start`, `check_out_tolerance_minutes`, `target_points` | detail 7 hari per jadwal | performance target day, payroll scheduled work day |
 | `employee_schedule_assignments` | `employee_id`, `schedule_id`, `effective_start_date`, `effective_end_date` | histori penugasan jadwal | employee detail, performance, payroll |
+| `employee_hobbies` | `employee_id`, `hobby_name`, `notes` | self-service profil hobi | settings, profile enrichment |
+| `employee_education_histories` | `employee_id`, `institution_name`, `degree`, `major`, `start_year`, `end_year` | self-service riwayat pendidikan | settings, profile enrichment |
+| `employee_competencies` | `employee_id`, `competency_name`, `level`, `issuer`, `certified_at` | self-service kompetensi | settings, profile enrichment |
 
 ### Relasi Penting
 
@@ -129,12 +135,16 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 | Enum | Nilai |
 |---|---|
-| `ticket_type` | `CUTI`, `SAKIT`, `IZIN`, `EMERGENCY`, `SETENGAH_HARI` |
+| `ticket_type` | `CUTI`, `CUTI_TAHUNAN`, `CUTI_BULANAN`, `CUTI_HAMIL_LAHIR`, `CUTI_NIKAH`, `SAKIT`, `IZIN`, `IZIN_ACARA`, `IZIN_JAM`, `MENINGGAL`, `EMERGENCY`, `SETENGAH_HARI`, `RESIGN` |
 | `ticket_status` | `DRAFT`, `SUBMITTED`, `AUTO_APPROVED`, `AUTO_REJECTED`, `NEED_REVIEW`, `APPROVED_SPV`, `APPROVED_HRD`, `REJECTED`, `CANCELLED`, `LOCKED` |
 | `ticket_payroll_impact` | `UNPAID`, `PAID_QUOTA_MONTHLY`, `PAID_QUOTA_ANNUAL` |
 | `attendance_status` | `HADIR`, `ALPA`, `IZIN`, `SAKIT`, `CUTI`, `OFF` |
 | `attendance_punctuality_status` | `TEPAT_WAKTU`, `TELAT` |
 | `attendance_source` | `MANUAL`, `FINGERPRINT_ADMS` |
+| `attendance_fallback_status` | `PENDING`, `APPROVED`, `REJECTED` |
+| `overtime_type` | `OVERTIME_1H`, `OVERTIME_2H`, `OVERTIME_3H`, `LEMBUR_FULLDAY`, `PATCH_ABSENCE_3H` |
+| `overtime_request_status` | `PENDING`, `APPROVED`, `REJECTED` |
+| `overtime_placement` | `BEFORE_SHIFT`, `AFTER_SHIFT` |
 | `review_status` | `DRAFT`, `SUBMITTED`, `VALIDATED`, `LOCKED` |
 | `incident_type` | `KOMPLAIN`, `MISS_PROSES`, `TELAT`, `AREA_KOTOR`, `PELANGGARAN`, `SP1`, `SP2`, `PENGHARGAAN` |
 | `incident_impact` | `REVIEW_ONLY`, `PAYROLL_POTENTIAL`, `NONE` |
@@ -145,6 +155,9 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 |---|---|---|---|
 | `attendance_tickets` | `employee_id`, `ticket_type`, `start_date`, `end_date`, `days_count`, `status`, `payroll_impact`, `approved_by_user_id`, `rejection_reason`, `created_by_user_id` | tiket izin/sakit/cuti | tickets, dashboard, payroll |
 | `employee_attendance_records` | `employee_id`, `attendance_date`, `attendance_status`, `check_in_time`, `check_out_time`, `punctuality_status`, `source` | rekap kehadiran manual/fingerprint | absensi, payroll |
+| `attendance_fallback_requests` | `employee_id`, `attendance_date`, `photo_url`, `status`, `review_notes` | fallback saat fingerprint gagal | absensi, payroll review |
+| `overtime_requests` | `employee_id`, `request_date`, `overtime_type`, `overtime_placement`, `overtime_hours`, `base_amount`, `meal_amount`, `total_amount`, `period_code`, `status` | request overtime dan komponen THP | overtime, payroll |
+| `overtime_draft_entries` | `overtime_request_id`, `employee_id`, `work_date`, `job_id`, `work_name`, `quantity`, `point_value`, `total_points` | draft detail overtime yang bisa diaudit | overtime, payroll |
 | `leave_quotas` | `employee_id`, `year`, `monthly_quota_total/used`, `annual_quota_total/used` | kuota paid leave | tickets, payroll effect |
 | `employee_reviews` | skor 5 aspek, `total_score`, `category`, `status`, `validated_by_user_id` | review kualitas kerja | reviews, dashboard |
 | `incident_logs` | `incident_type`, `impact`, `payroll_deduction`, `recorded_by_role`, `is_active` | kejadian yang bisa berdampak ke review/payroll | reviews, dashboard, payroll |
@@ -195,13 +208,15 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `monthly_point_performances` | sumber training, dashboard, payroll TEAMWORK |
 | `attendance_tickets` | memengaruhi target poin dan payroll impact |
 | `employee_attendance_records` | memengaruhi eligibility bonus fulltime dan disiplin |
+| `attendance_fallback_requests` | memengaruhi attendance review dan payroll fallback |
+| `overtime_requests` | memengaruhi komponen overtime THP |
 | `incident_logs` | memengaruhi review summary dan payroll deduction/SP penalty |
 | `payroll_results` | sumber finance dashboard, detail payroll, export, payslip |
 
 ## 10. Perlu Review Lanjutan
 
 - `status: sebagian`
-- schema sudah cukup lengkap untuk payroll, tetapi beberapa komponen nominal belum dipakai penuh di action preview:
+- schema sudah cukup lengkap untuk payroll, tetapi beberapa komponen nominal masih perlu dipantau terhadap action preview:
   `dailyAllowanceAmount`, `overtimeRateAmount`, `overtimeAmount`, `dailyAllowancePaid`.
 - repo tidak menunjukkan policy RLS pada tabel-tabel ini.
 - belum ada tabel audit khusus untuk ticket approval, review validation, atau training decision selain log yang implisit di record utama.

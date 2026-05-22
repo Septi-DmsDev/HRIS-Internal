@@ -9,6 +9,7 @@ File ditemukan:
 - `src/lib/db/schema/payroll.ts`
 - `src/lib/validations/payroll.ts`
 - `src/server/actions/payroll.ts`
+- `src/server/actions/overtime.ts`
 - `src/server/attendance-engine/resolve-attendance-payroll-eligibility.ts`
 - `src/server/payroll-engine/*`
 - `src/app/(dashboard)/payroll/*`
@@ -16,10 +17,9 @@ File ditemukan:
 
 Gap yang perlu dibangun:
 
-- uang harian masih ada di schema/UI tetapi belum dihitung di preview,
-- rule “koreksi setelah paid masuk periode berikutnya” belum dibantu alur UI khusus,
+- rule "koreksi setelah paid masuk periode berikutnya" belum dibantu alur UI khusus,
 - belum ada scope payroll per divisi,
-- attendance manual sudah dibaca preview untuk eligibility fulltime/disiplin, tetapi integrasi fingerprint/ADMS belum ada.
+- attendance manual sudah dibaca preview untuk eligibility fulltime/disiplin, tetapi integrasi fingerprint/ADMS masih perlu hardening penuh.
 
 ## 1. Tujuan Modul
 
@@ -30,14 +30,14 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 - KPI managerial,
 - auto-preview payroll saat periode dibuka,
 - eligibility bonus fulltime/disiplin dari rekap absensi manual,
+- komponen overtime dari `overtime_requests`,
 - snapshot data employee,
 - finalisasi,
 - status paid,
 - lock periode,
 - adjustment manual,
 - detail payroll,
-- export Excel,
-- payslip PDF,
+- export Excel, rekap Excel, bulk slips PDF, dan payslip PDF,
 - finance summary.
 
 ## 2. File dan Folder Terkait
@@ -47,6 +47,7 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 | `src/lib/db/schema/payroll.ts` | semua tabel payroll | payroll, finance | schema utama |
 | `src/lib/validations/payroll.ts` | validasi periode, adjustment, KPI, salary config | action payroll | pakai Zod |
 | `src/server/actions/payroll.ts` | workspace dan mutation payroll | UI payroll, route export, finance | action paling kompleks |
+| `src/server/actions/overtime.ts` | request overtime, draft entry, decision, schedule division overtime | overtime | payroll reads approved output |
 | `src/server/attendance-engine/resolve-attendance-payroll-eligibility.ts` | rekap eligibility fulltime/disiplin dari absensi | preview payroll | pure |
 | `src/server/payroll-engine/resolve-payroll-period.ts` | resolver anchor `YYYY-MM` ke periode 26-25 | create period | pure |
 | `src/server/payroll-engine/resolve-bonus-level.ts` | tabel level bonus | calculator payroll | pure |
@@ -68,7 +69,7 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 | `src/app/(dashboard)/payroll/[periodId]/slips.pdf/route.ts` | export bulk payslip PDF | browser | node runtime |
 | `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | export PDF payslip per karyawan | browser | node runtime |
 | `src/app/(dashboard)/finance/page.tsx` | finance dashboard | HRD/Finance/Viewer | membaca workspace payroll |
-| `src/app/(dashboard)/finance/FinanceDashboardClient.tsx` | summary finance per periode — gaji pokok, grade, adjustment (tambah/edit/hapus) | HRD/Finance/Viewer | client component |
+| `src/app/(dashboard)/finance/FinanceDashboardClient.tsx` | summary finance per periode, gaji pokok, grade, adjustment (tambah/edit/hapus) | HRD/Finance/Viewer | client component |
 
 ## 3. Alur Kerja Modul
 
@@ -97,7 +98,7 @@ Auto-preview payroll
 → hitung scheduledWorkDays
 → ambil employeeAttendanceRecords dalam periode
 → ambil monthly performance atau managerial KPI
-→ ambil ticket approved, incident aktif, adjustment periode, dan recurring adjustment aktif
+→ ambil ticket approved, incident aktif, overtime approved, adjustment periode, dan recurring adjustment aktif
 → hitung payroll per employee dengan engine
 → replace payroll_employee_snapshots
 → replace payroll_results
@@ -137,14 +138,14 @@ orchestrator seluruh proses payroll.
 
 Export utama:
 
-- `getPayrollWorkspace()` — hasil include `branchName` dari `branchSnapshotName`
+- `getPayrollWorkspace()` - hasil include `branchName` dari `branchSnapshotName`
 - `getPayrollEmployeeDetail()`
 - `upsertEmployeeSalaryConfig()`
 - `upsertManagerialKpiSummary()`
 - `createPayrollPeriod()`
-- `addPayrollAdjustment()` — tambah adjustment, enforce business rules per kategori
-- `updatePayrollAdjustment()` — edit nominal/keterangan adjustment existing; enforce batas kasbon
-- `deletePayrollAdjustment()` — hapus adjustment (RECURRING: soft-deactivate, PERIOD: hard-delete)
+- `addPayrollAdjustment()` - tambah adjustment, enforce business rules per kategori
+- `updatePayrollAdjustment()` - edit nominal/keterangan adjustment existing; enforce batas kasbon
+- `deletePayrollAdjustment()` - hapus adjustment (RECURRING: soft-deactivate, PERIOD: hard-delete)
 - `generatePayrollPreview()`
 - `finalizePayroll()`
 - `markPayrollPaid()`
@@ -173,19 +174,20 @@ Logika penting:
   - menghitung SP penalty dari incident type `SP1` dan `SP2` sebagai pengurang performa absolut sebelum tier bonus dipilih,
   - membaca `employeeAttendanceRecords` periode untuk menentukan bonus fulltime dan bonus disiplin,
   - membaca `overtime_requests` berstatus `APPROVED` dalam periode untuk dihitung sebagai komponen overtime THP,
-  - untuk snapshot struktur (divisi/jabatan/grade), sistem mengutamakan histori perubahan **terbaru berdasarkan waktu input (`createdAt`)**; `effectiveDate` tetap disimpan sebagai referensi tanggal efektif.
+  - untuk snapshot struktur (divisi/jabatan/grade), sistem mengutamakan histori perubahan terbaru berdasarkan waktu input (`createdAt`); `effectiveDate` tetap disimpan sebagai referensi tanggal efektif,
   - tanpa data absensi periode, bonus fulltime dan bonus disiplin dibayar `0`,
   - bonus disiplin tidak dipicu oleh input persentase/manual KPI; eligibility-nya mengikuti absensi dan incident telat,
   - menyatukan adjustment periode dan recurring adjustment aktif.
 - `BPJS` dan `TRANSPORT` disimpan di `recurring_payroll_adjustments`; adjustment lain tetap period-specific di `payroll_adjustments`.
 - `updatePayrollAdjustment()` hanya mengubah `amount` dan `reason` (keterangan/tenor); kategori dan karyawan tidak bisa diubah melalui action ini untuk menjaga integritas business rules.
-- rekap.xlsx sheet **Summary** berisi: kolom A–C = rekap per tab (KABAG/SPV/MANAGERIAL/divisi), kolom E–G = per cabang, I–K = per divisi, M–O = per jabatan, Q–S = per grade, U–W = per kelompok karyawan.
+- rekap.xlsx sheet **Summary** berisi: kolom A-C = rekap per tab (KABAG/SPV/MANAGERIAL/divisi), kolom E-G = per cabang, I-K = per divisi, M-O = per jabatan, Q-S = per grade, U-W = per kelompok karyawan.
 - page `/payroll` memanggil auto-preview untuk periode yang belum `FINALIZED/PAID/LOCKED`, sehingga tabel payroll langsung terisi tanpa tombol manual `Generate Preview`.
 - `finalizePayroll()`:
   - mengunci result dan monthly performance,
   - mengubah activity approved menjadi `DIKUNCI_PAYROLL`.
 - `markPayrollPaid()` dan `lockPayrollPeriod()`:
   - memakai engine transisi status.
+- `generatePayrollPreview()` juga memasukkan total `overtime_requests` APPROVED ke THP.
 
 ### `src/server/payroll-engine/resolve-payroll-period.ts`
 
@@ -254,7 +256,7 @@ Logika penting:
 
 - membaca `breakdown` JSON dari payroll result,
 - membangun addition/deduction dengan `buildPayslipBreakdown()`,
-- menampilkan ticket approved dan incident yang menjadi sumber perhitungan.
+- menampilkan ticket approved, overtime, dan incident yang menjadi sumber perhitungan.
 
 ### Route export Excel dan PDF
 
@@ -272,6 +274,7 @@ Catatan:
 - payroll read role terbatas.
 - payroll write role terbatas.
 - TEAMWORK training tidak mendapat bonus performa.
+- overtime dihitung di server-side preview, bukan di browser.
 - default gaji pokok:
   - training `Rp1.000.000`
   - reguler `Rp1.200.000`
@@ -296,7 +299,7 @@ Catatan:
 | `payroll_employee_snapshots` | ya | ya | snapshot data payroll |
 | `payroll_results` | ya | ya | hasil payroll per employee |
 | `payroll_adjustments` | ya | ya | koreksi manual |
-| `recurring_payroll_adjustments` | ya | ya | BPJS dan Uang Transport berulang |
+| `recurring_payroll_adjustments` | ya | ya | BPJS dan uang transport berulang |
 | `payroll_audit_logs` | ya | ya | audit payroll |
 | `employees` | ya | tidak langsung | sumber profil aktif |
 | `employee_division_histories` | ya | tidak | snapshot divisi |
@@ -307,8 +310,8 @@ Catatan:
 | `monthly_point_performances` | ya | di-lock | sumber performa TEAMWORK |
 | `attendance_tickets` | ya | tidak | unpaid/paid leave days |
 | `employee_attendance_records` | ya | tidak | eligibility bonus fulltime dan disiplin |
-| `incident_logs` | ya | tidak | potongan dan SP penalty |
 | `overtime_requests` | ya | tidak | nominal overtime approved per periode |
+| `incident_logs` | ya | tidak | potongan dan SP penalty |
 | `daily_activity_entries` | ya | di-lock saat finalize | mengunci aktivitas yang sudah masuk payroll |
 | `daily_activity_approval_logs` | ya | ya | log `LOCK_PAYROLL` |
 
@@ -324,11 +327,11 @@ Catatan:
 
 ## 8. Hal yang Perlu Diperhatikan Developer
 
-- `dailyAllowanceAmount` dan `overtimeRateAmount` sudah ada di salary config, tetapi preview saat ini tetap menyimpan `dailyAllowancePaid = 0`; nominal overtime dibaca dari `overtime_requests` approved per periode.
+- `dailyAllowanceAmount` dan `overtimeRateAmount` sudah ada di salary config; overtime dibaca dari `overtime_requests` approved per periode.
 - adjustment period-specific dan recurring adjustment adalah sumber penambah/pengurang manual.
 - absensi manual saat ini adalah sumber payroll untuk bonus fulltime/disiplin; integrasi fingerprint/ADMS akan menulis ke tabel yang sama dengan source berbeda.
 - payroll saat ini belum menerapkan scope divisi; aksesnya global sesuai role payroll.
-- rule “jangan hitung payroll di browser” dipatuhi: semua kalkulasi ada di server action/engine.
+- rule "jangan hitung payroll di browser" dipatuhi: semua kalkulasi ada di server action/engine.
 
 ## 9. Contoh Alur Nyata
 
@@ -337,6 +340,7 @@ Finance membuat periode 2026-04
 → resolvePayrollPeriod() menghasilkan 2026-03-26 s.d. 2026-04-25
 → HRD mengisi salary config dan KPI managerial
 → HRD mengisi absensi manual periode terkait
+→ HRD/employee-linked mengajukan overtime bila ada
 → Finance membuka `/payroll`; sistem auto-preview server-side
 → sistem membuat snapshot employee dan payroll result
 → HRD review hasil, bila perlu tambah adjustment
@@ -344,5 +348,5 @@ Finance membuat periode 2026-04
 → sistem lock monthly performance dan activity yang sudah approved
 → Finance tandai PAID
 → Finance kunci periode
-→ user payroll dapat export Excel dan slip gaji PDF
+→ user payroll dapat export Excel, rekap, dan slip gaji PDF
 ```

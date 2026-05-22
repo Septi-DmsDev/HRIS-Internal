@@ -44,6 +44,7 @@ Catatan:
 | `src/server/ticketing-engine/resolve-leave-quota-eligibility.test.ts` | eligibility leave quota berbasis quarter |
 | `src/server/review-engine/resolve-reviewer-employee-id.test.ts` | reviewer employee id helper |
 | `src/server/attendance-engine/resolve-attendance-payroll-eligibility.test.ts` | eligibility bonus fulltime/disiplin dari absensi |
+| `src/server/attendance-engine/resolve-attendance-punctuality.test.ts` | punctuality resolver untuk absensi manual/fingerprint |
 | `src/server/payroll-engine/resolve-payroll-period.test.ts` | periode payroll 26-25 |
 | `src/server/payroll-engine/resolve-bonus-level.test.ts` | level bonus kinerja/prestasi |
 | `src/server/payroll-engine/calculate-teamwork-payroll.test.ts` | payroll TEAMWORK |
@@ -52,6 +53,8 @@ Catatan:
 | `src/server/payroll-engine/build-payslip-breakdown.test.ts` | grouping addition/deduction slip |
 | `src/server/payroll-engine/resolve-payroll-status-transition.test.ts` | aturan paid/lock |
 | `src/server/payroll-engine/summarize-payroll-results.test.ts` | summary finance global dan per divisi |
+| `src/server/actions/me.test.ts` | helper akses personal |
+| `src/app/(dashboard)/finance/employee-search.test.ts` | helper pencarian employee finance |
 
 ## 5. Apa yang Sudah Dites
 
@@ -84,6 +87,7 @@ Catatan:
 - reviewer employee id helper;
 - leave quota quarter eligibility;
 - attendance eligibility untuk bonus fulltime/disiplin;
+- overtime masih belum punya coverage test action end-to-end;
 - employee/work schedule validation;
 - nominal payroll tidak boleh negatif;
 - KPI managerial dibatasi 0-200.
@@ -97,10 +101,11 @@ Catatan:
 | Employee action | belum ada test histori create/update |
 | Schedule action | belum ada test assignment schedule dan scope |
 | Performance action | belum ada test workflow save/submit/approve/reject/generate/batch |
-| Ticketing action | belum ada test quota consume monthly/annual, cancel rule, scope SPV/KABAG |
+| Ticketing action | belum ada test quota consume monthly/annual, cancel rule, scope SPV/KABAG, overtime flow |
 | Review action | belum ada test formula review di level action dan scope SPV/KABAG |
 | Training action | belum ada test kategori training dan keputusan lulus/gagal |
 | Payroll action | belum ada integration test preview/finalize/paid/lock |
+| Overtime action | belum ada test action flow dan schedule helper |
 | Route handler | belum ada test export Excel dan payslip PDF |
 | RLS | belum ada test policy |
 | E2E | belum ada Playwright flow end-to-end |

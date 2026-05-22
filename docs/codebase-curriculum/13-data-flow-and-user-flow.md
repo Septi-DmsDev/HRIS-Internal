@@ -2,7 +2,7 @@
 
 ## 1. Tujuan Dokumen
 
-Dokumen ini menjelaskan alur data antar modul dan alur user per role supaya pembaca tidak berhenti di level “file mana memanggil file mana”, tetapi juga paham kenapa data itu mengalir begitu.
+Dokumen ini menjelaskan alur data antar modul dan alur user per role supaya pembaca paham kenapa data mengalir seperti itu, bukan sekadar file mana yang memanggil file mana.
 
 ## 2. Data Flow Utama
 
@@ -10,8 +10,8 @@ Dokumen ini menjelaskan alur data antar modul dan alur user per role supaya pemb
 Master Data
 → Employee Profile
 → Schedule Assignment + Division/Position/Grade History
-→ Performance / Ticketing / Review / Training
-→ Monthly Point Performance + Incident + Managerial KPI
+→ Performance / Ticketing / Overtime / Review / Training
+→ Monthly Point Performance + Incident + Managerial KPI + History
 → Payroll Employee Snapshot
 → Payroll Result
 → Finance Dashboard / Payslip / Export
@@ -38,7 +38,8 @@ Login
 → akses semua modul
 → kelola master data
 → kelola employee
-→ approve performance/ticket/review bila perlu
+→ approve performance/ticket/overtime/review bila perlu
+→ lihat history lintas modul
 → ikut mengelola payroll
 ```
 
@@ -49,7 +50,7 @@ Login
 → kelola master data
 → kelola employee profiling
 → monitor dan override performance
-→ kelola ticket
+→ kelola ticket dan overtime
 → validasi review
 → putuskan training
 → baca payroll dan finance
@@ -72,7 +73,7 @@ Login
 Login
 → hanya melihat karyawan divisinya
 → memproses aktivitas harian divisinya
-→ memproses ticket divisinya
+→ memproses ticket dan overtime divisinya
 → membuat review dan incident divisinya
 → melihat trainee divisinya
 ```
@@ -82,8 +83,8 @@ Login
 ```text
 Login
 → bisa masuk dashboard
-→ pada matrix permission semestinya bisa input/submit tertentu
-→ tetapi di code aktual self-service performance/ticket belum dibuka penuh
+→ TEAMWORK bisa self-service performance, ticket, overtime, dan schedule tertentu
+→ MANAGERIAL terhubung ke ticket/schedule/payroll detail sesuai employee link
 ```
 
 ### PAYROLL_VIEWER
@@ -98,7 +99,7 @@ Login
 ## 5. Data Flow Modul Master ke Employee
 
 ```text
-Master cabang/divisi/jabatan/grade/jadwal
+Master cabang/divisi/jabatan/grade/jadwal/shift
 → dipilih di form employee
 → employee tersimpan dengan FK ke master
 → histori perubahan disimpan terpisah
@@ -118,7 +119,18 @@ Import workbook katalog
 → training/dashboard/payroll membaca hasil ini
 ```
 
-## 7. Data Flow Ticketing
+## 7. Data Flow Overtime
+
+```text
+User input overtime
+→ overtime_requests + overtime_draft_entries
+→ approver decision
+→ request status APPROVED / REJECTED
+→ payroll membaca overtime approved di periode
+→ THP bertambah pada preview server-side
+```
+
+## 8. Data Flow Ticketing
 
 ```text
 Ticket dibuat
@@ -130,7 +142,7 @@ Ticket dibuat
 → payroll membaca ticket approved dalam periode aktif
 ```
 
-## 8. Data Flow Review dan Incident
+## 9. Data Flow Review dan Incident
 
 ```text
 Review dibuat
@@ -144,7 +156,7 @@ Incident dibuat
 → payroll membaca incident aktif dalam periode
 ```
 
-## 9. Data Flow Training
+## 10. Data Flow Training
 
 ```text
 Employee status = TRAINING
@@ -154,7 +166,7 @@ Employee status = TRAINING
 → employees.employmentStatus dan payrollStatus berubah
 ```
 
-## 10. Data Flow Payroll
+## 11. Data Flow Payroll
 
 ```text
 Create payroll period
@@ -170,7 +182,7 @@ Auto-preview saat `/payroll` dibuka
 → baca employees aktif
 → resolve snapshot divisi/jabatan/grade
 → baca monthly performance atau KPI
-→ baca approved ticket, incident, adjustment periode, dan recurring adjustment aktif
+→ baca approved ticket, overtime, incident, adjustment periode, dan recurring adjustment aktif
 → hitung payroll via engine
 → tulis payroll_employee_snapshots
 → tulis payroll_results
@@ -188,16 +200,16 @@ Lock
 → payroll_periods LOCKED
 ```
 
-## 11. User Flow End-to-End yang Paling Penting
+## 12. User Flow End-to-End yang Paling Penting
 
 ### Alur Onboarding Employee Baru
 
 ```text
 HRD buat branch/division/position/grade bila belum ada
-→ HRD buat work schedule
+→ HRD buat work schedule dan shift master
 → HRD tambah employee
 → histori awal employee tercatat
-→ employee siap dipakai di performance/ticketing/training/payroll
+→ employee siap dipakai di performance/ticketing/overtime/training/payroll
 ```
 
 ### Alur Performance TEAMWORK
@@ -211,13 +223,13 @@ HRD import katalog poin aktif
 → hasil bulanan dibaca training/payroll
 ```
 
-### Alur Ticket ke Payroll
+### Alur Ticket, Overtime, dan Payroll
 
 ```text
-ticket dibuat
-→ ticket disetujui
-→ payrollImpact ditentukan
-→ payroll preview menghitung unpaid/paid leave days
+ticket/overtime dibuat
+→ ticket/overtime disetujui
+→ payrollImpact / overtimeAmount ditentukan
+→ payroll preview menghitung unpaid/paid leave days dan overtime THP
 → THP dan eligibility bonus terpengaruh
 ```
 
@@ -253,9 +265,9 @@ Finance buat periode
 → finance dashboard dan export membaca result final
 ```
 
-## 12. Titik Putus Alur yang Perlu Disadari
+## 13. Titik Putus Alur yang Perlu Disadari
 
-- performance self-service belum tersambung ke role `TEAMWORK`.
-- ticket self-service belum tersambung ke role `TEAMWORK`/`MANAGERIAL`.
-- training decision belum memiliki “effective next payroll period”.
-- finance dashboard bukan modul perhitungan baru; ia murni pembaca `payroll_results`.
+- performance self-service belum sepenuhnya sama di semua role, jadi cek action dan route yang benar-benar aktif.
+- ticket self-service dan overtime self-service bergantung pada `user_roles.employee_id`.
+- training decision belum memiliki rule efektif next payroll period sepenuhnya di code.
+- history audit lintas modul sudah ada, tetapi coverage tiap modul belum merata.

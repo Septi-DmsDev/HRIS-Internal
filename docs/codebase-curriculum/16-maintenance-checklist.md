@@ -24,6 +24,7 @@ Checklist ini dipakai sebelum, saat, dan setelah mengubah code agar perubahan te
 - apakah SPV/KABAG harus dibatasi `user_role_divisions`?
 - apakah self-access butuh `user_roles.employee_id`?
 - apakah route handler PDF/XLSX memakai access helper yang sama dengan UI?
+- apakah history/audit route hanya dibuka untuk HRD/SUPER_ADMIN?
 - apakah Supabase service-role client hanya dipakai server-side?
 
 ### Validation
@@ -94,6 +95,19 @@ Checklist ini dipakai sebelum, saat, dan setelah mengubah code agar perubahan te
 - cek target days dan divisi snapshot;
 - cek gap deadline H+1/H+2.
 
+### Overtime
+
+- cek overtime placement `BEFORE_SHIFT` / `AFTER_SHIFT`;
+- cek draft overtime dan request overtime tetap terpisah dari ticket leave;
+- cek overtime approved ikut terbaca payroll preview;
+- cek scope SPV/KABAG dan employee-linked flow.
+
+### History
+
+- cek history lintas modul tidak mengekspos payload sensitif tanpa scope;
+- cek sumber audit yang digabung di `/history`;
+- cek limit data history tidak terlalu besar untuk UI.
+
 ### Ticketing
 
 - cek status ticket sebelum approve/reject/cancel;
@@ -146,6 +160,7 @@ Checklist ini dipakai sebelum, saat, dan setelah mengubah code agar perubahan te
 - Deadline H+1/H+2 performance belum lengkap.
 - Training graduation belum sepenuhnya mengikuti rule efektif payroll berikutnya.
 - Audit log non-payroll belum merata.
+- overtime approval flow dan history route perlu test coverage lebih lengkap.
 - `next-update.md` berisi payroll/master-data hardening yang belum selesai semua.
 
 ## 7. Checklist Setelah Mengubah Code

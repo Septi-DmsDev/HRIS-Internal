@@ -1,6 +1,6 @@
 # Onboarding Curriculum - HRIS Internal
 
-Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-04.
+Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-22.
 
 ## 1. Tujuan Belajar
 
@@ -70,9 +70,12 @@ Rule penting:
 | `src/app/(dashboard)/performance/*` | Performance point dan training evaluation. |
 | `src/app/(dashboard)/tickets/*` | Ticketing izin/sakit/cuti. |
 | `src/app/(dashboard)/absensi/*` | Input manual absensi kehadiran dan kedisiplinan. |
+| `src/app/(dashboard)/overtime/*` | Request overtime dan draft entry. |
+| `src/app/(dashboard)/history/*` | Audit trail lintas modul. |
 | `src/app/(dashboard)/reviews/*` | Review dan incident. |
 | `src/app/(dashboard)/payroll/*` | Payroll workspace, detail, PDF payslip, export XLSX. |
 | `src/app/(dashboard)/finance/*` | Finance summary dari payroll result. |
+| `src/app/(dashboard)/teamperformance/*` | Tampilan performa tim. |
 | `src/app/(dashboard)/settings/*` | Settings akun login aktif. |
 | `src/app/(dashboard)/schedule/*` | Jadwal pribadi/tim. |
 | `src/app/(dashboard)/scheduler/*` | Scheduler operational view. |
@@ -98,6 +101,8 @@ Rule penting:
 | `src/server/actions/*` | Boundary query/mutation yang dipanggil UI. |
 | `src/server/point-engine/*` | Parser workbook, target days, monthly performance. |
 | `src/server/attendance-engine/*` | Helper eligibility absensi untuk payroll. |
+| `src/server/actions/overtime.ts` | Request overtime dan decision flow. |
+| `src/server/actions/history.ts` | Audit trail lintas modul. |
 | `src/server/payroll-engine/*` | Payroll period, bonus level, payroll calculators, payslip, export, summary. |
 | `src/server/ticketing-engine/*` | Helper eligibility leave quota. |
 | `src/server/review-engine/*` | Helper reviewer employee link. |

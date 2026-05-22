@@ -24,6 +24,7 @@ Menjelaskan alur autentikasi dan otorisasi yang dipakai code saat ini, termasuk:
 | `src/lib/db/schema/auth.ts` | enum role, `user_roles`, `user_role_divisions` | employee link dan division scope |
 | `src/server/actions/auth.ts` | login/logout | Supabase Auth |
 | `src/server/actions/users.ts` | user role management | invite/update/remove/upsert employee login |
+| `src/server/actions/history.ts` | audit trail lintas modul | HRD/SUPER_ADMIN history viewer |
 | `src/app/(auth)/login/*` | UI login | form submit ke `loginAction()` |
 | `src/app/(dashboard)/layout.tsx` | guard login + role UI | sidebar/header |
 
@@ -85,11 +86,11 @@ Role berasal dari enum `user_role` di `src/lib/db/schema/auth.ts` dan `USER_ROLE
 |---|---|
 | `SUPER_ADMIN` | hampir semua modul, user management, payroll lifecycle |
 | `HRD` | master data, employee, performance HR flow, review, ticketing, training, payroll read |
-| `KABAG` | scoped division access untuk performance/review/ticket/employee read |
-| `SPV` | scoped division access untuk performance/review/ticket/employee read |
+| `KABAG` | scoped division access untuk performance/review/ticket/employee read dan overtime/schedule tertentu |
+| `SPV` | scoped division access untuk performance/review/ticket/employee read dan overtime/schedule tertentu |
 | `FINANCE` | payroll/finance dan employee read |
-| `TEAMWORK` | akses performance/ticket terhubung employee bila linked ke employee |
-| `MANAGERIAL` | akses ticket/schedule/payroll detail terhubung employee bila linked ke employee, KPI source untuk payroll |
+| `TEAMWORK` | self-service performance/ticket/overtime bila linked ke employee |
+| `MANAGERIAL` | self-service ticket/schedule/payroll detail bila linked ke employee, KPI source untuk payroll |
 | `PAYROLL_VIEWER` | payroll read |
 
 ## 6. Data Scope Penting
@@ -102,6 +103,7 @@ Dipakai oleh:
 
 - `/settings`
 - `/schedule`
+- `/overtime`
 - personal payroll detail
 - TEAMWORK personal performance helpers
 - ticket create untuk role employee-linked

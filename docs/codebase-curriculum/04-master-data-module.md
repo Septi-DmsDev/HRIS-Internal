@@ -14,7 +14,9 @@ Modul ini menyediakan data referensi yang dipakai modul lain:
 - divisi,
 - jabatan,
 - grade,
-- jadwal kerja mingguan.
+- jadwal kerja mingguan,
+- master shift,
+- konfigurasi kelompok karyawan.
 
 Tanpa modul ini, employee profiling, performance, training, dan payroll tidak bisa berjalan konsisten.
 
@@ -22,18 +24,20 @@ Tanpa modul ini, employee profiling, performance, training, dan payroll tidak bi
 
 | File/Folder | Fungsi | Dipakai Oleh | Catatan |
 |---|---|---|---|
-| `src/lib/db/schema/master.ts` | tabel branch/division/position/grade | employee, performance, training, payroll | schema inti master |
-| `src/lib/db/schema/employee.ts` | `workSchedules`, `workScheduleDays` | employee, performance, payroll | jadwal kerja diletakkan di schema employee |
+| `src/lib/db/schema/master.ts` | tabel branch/division/position/grade/employee group | employee, performance, training, payroll | schema inti master |
+| `src/lib/db/schema/employee.ts` | `workSchedules`, `workShiftMasters`, `workScheduleDays` | employee, performance, absensi, payroll | jadwal kerja diletakkan di schema employee |
 | `src/lib/validations/master.ts` | validasi branch/division/position/grade | action master | pakai Zod |
 | `src/lib/validations/employee.ts` | validasi work schedule | action work schedule | 7 hari unik wajib |
 | `src/server/actions/branches.ts` | CRUD cabang | UI master cabang | role HRD/SUPER_ADMIN |
 | `src/server/actions/divisions.ts` | CRUD divisi | UI master divisi | ada `trainingPassPercent` |
 | `src/server/actions/positions.ts` | CRUD jabatan | UI master jabatan | ada `employeeGroup` |
+| `src/server/actions/employee-group-configs.ts` | konfigurasi kelompok karyawan | UI master employee groups | untuk aturan turunan role/group |
 | `src/server/actions/grades.ts` | CRUD grade | UI master grade | kode unik |
 | `src/server/actions/work-schedules.ts` | CRUD jadwal kerja + hari | UI jadwal kerja | pakai transaction |
 | `src/app/(dashboard)/master/branches/*` | page + table cabang | user HRD/admin | pola CRUD table |
 | `src/app/(dashboard)/master/divisions/*` | page + table divisi | user HRD/admin | pola CRUD table |
 | `src/app/(dashboard)/master/positions/*` | page + table jabatan | user HRD/admin | pola CRUD table |
+| `src/app/(dashboard)/master/employee-groups/*` | page + table konfigurasi kelompok | user HRD/admin | aturan kelompok karyawan |
 | `src/app/(dashboard)/master/grades/*` | page + table grade | user HRD/admin | pola CRUD table |
 | `src/app/(dashboard)/master/work-schedules/*` | page + table jadwal | user HRD/admin | paling kompleks di master |
 
@@ -68,6 +72,8 @@ Logika penting:
 - `divisions.code`, `positions.code`, `grades.code` harus unik.
 - `divisions.trainingPassPercent` default `80`.
 - `positions.employeeGroup` memaksa jabatan dikaitkan ke `MANAGERIAL` atau `TEAMWORK`.
+- `workShiftMasters` menyimpan toleransi check-in/break/check-out untuk absensi.
+- `employee-group-configs` menjadi pengaturan tambahan untuk label/aturan kelompok karyawan, bukan pengganti enum group inti.
 
 Risiko/catatan:
 
@@ -158,6 +164,7 @@ Logika penting:
 - jam pulang harus lebih besar daripada jam masuk.
 - jadwal yang masih dipakai karyawan tidak boleh dihapus.
 - divisi menyimpan `trainingPassPercent` yang akan dipakai training evaluation.
+- shift master dipakai absensi manual dan fallback attendance.
 
 ## 6. Data yang Dibaca dan Ditulis
 
