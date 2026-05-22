@@ -25,7 +25,7 @@ import {
   getDivisionTargetRulesByVersion,
   getPointCatalogEntriesByVersion,
 } from "@/server/services/point-catalog-service";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 type CatalogEntryRow = {
@@ -349,34 +349,80 @@ export async function importCatalogEntriesFromXlsx(formData: FormData) {
   const versionId = await getOrCreateActiveVersion();
   const importedDivisions = [...new Set(entries.map((e) => e.divisionName))];
 
-  await db.transaction(async (tx) => {
-    for (const divName of importedDivisions) {
-      await tx
-        .delete(pointCatalogEntries)
-        .where(
-          and(
-            eq(pointCatalogEntries.versionId, versionId),
-            sql`UPPER(${pointCatalogEntries.divisionName}) = ${divName}`
-          )
-        );
-    }
+  // Fetch existing entries untuk divisi yang diimport (untuk upsert logic)
+  // Fetch semua existing entries versi aktif lalu filter di JS (simpler, aman untuk FK restrict)
+  const existingEntries = await db
+    .select({
+      id: pointCatalogEntries.id,
+      divisionName: pointCatalogEntries.divisionName,
+      workName: pointCatalogEntries.workName,
+      externalRowNumber: pointCatalogEntries.externalRowNumber,
+    })
+    .from(pointCatalogEntries)
+    .where(eq(pointCatalogEntries.versionId, versionId));
 
-    await tx.insert(pointCatalogEntries).values(
-      entries.map((e, idx) => ({
-        versionId,
+  // Buat lookup key: UPPER(divisionName) + "||" + UPPER(workName)
+  const existingMap = new Map<string, { id: string; externalRowNumber: number | null }>();
+  for (const row of existingEntries) {
+    const key = `${row.divisionName.toUpperCase()}||${row.workName.toUpperCase()}`;
+    existingMap.set(key, { id: row.id, externalRowNumber: row.externalRowNumber });
+  }
+
+  const toUpdate: Array<{ id: string; pointValue: string; unitDescription: string | null }> = [];
+  const toInsert: Array<{ divisionName: string; workName: string; pointValue: string; unitDescription: string | null; externalRowNumber: number }> = [];
+
+  // Hitung max externalRowNumber untuk insert baru
+  const maxRowNum = existingEntries.reduce(
+    (max, row) => Math.max(max, row.externalRowNumber ?? 0),
+    0
+  );
+  let nextRowNum = maxRowNum + 1;
+
+  for (const e of entries) {
+    const key = `${e.divisionName.toUpperCase()}||${e.workName.toUpperCase()}`;
+    const existing = existingMap.get(key);
+    if (existing) {
+      toUpdate.push({ id: existing.id, pointValue: e.pointValue.toFixed(2), unitDescription: e.unitDescription });
+    } else {
+      toInsert.push({
         divisionName: e.divisionName,
         workName: e.workName,
         pointValue: e.pointValue.toFixed(2),
         unitDescription: e.unitDescription,
-        externalRowNumber: idx + 1,
-      }))
-    );
+        externalRowNumber: nextRowNum++,
+      });
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    // Update satu per satu (tidak ada bulk update di Drizzle tanpa raw SQL)
+    for (const upd of toUpdate) {
+      await tx
+        .update(pointCatalogEntries)
+        .set({ pointValue: upd.pointValue, unitDescription: upd.unitDescription, updatedAt: new Date() })
+        .where(eq(pointCatalogEntries.id, upd.id));
+    }
+
+    if (toInsert.length > 0) {
+      await tx.insert(pointCatalogEntries).values(
+        toInsert.map((e) => ({
+          versionId,
+          divisionName: e.divisionName,
+          workName: e.workName,
+          pointValue: e.pointValue,
+          unitDescription: e.unitDescription,
+          externalRowNumber: e.externalRowNumber,
+        }))
+      );
+    }
   });
 
   revalidatePath("/performance");
   return {
     success: true,
     importedEntries: entries.length,
+    updatedEntries: toUpdate.length,
+    insertedEntries: toInsert.length,
     importedDivisions: importedDivisions.length,
   };
 }
