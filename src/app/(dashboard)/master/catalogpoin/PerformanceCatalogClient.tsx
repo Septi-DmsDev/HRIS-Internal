@@ -748,7 +748,7 @@ export default function PerformanceCatalogClient({
         setXlsxOpen(false);
         setXlsxFile(null);
         setLastResult(
-          `Import berhasil: ${"updatedEntries" in result ? `${result.updatedEntries} diperbarui + ${result.insertedEntries} baru` : `${result.importedEntries} entry`} dari ${result.importedDivisions} divisi.`
+          `Import berhasil: ${result.updatedEntries} diperbarui + ${result.insertedEntries} baru dari ${result.importedDivisions} divisi.`
         );
         router.refresh();
       }
