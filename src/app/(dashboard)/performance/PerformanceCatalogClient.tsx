@@ -395,6 +395,7 @@ export default function PerformanceCatalogClient({
   );
   const [decisionNotes, setDecisionNotes] = useState("");
   const [draftQueueSearch, setDraftQueueSearch] = useState("");
+  const [draftQueueDivision, setDraftQueueDivision] = useState("");
   const [draftDetailGroup, setDraftDetailGroup] = useState<ActivityDraftGroup | null>(null);
   const [draftDecision, setDraftDecision] = useState<{
     action: "approve" | "reject";
@@ -491,6 +492,7 @@ export default function PerformanceCatalogClient({
     const q = draftQueueSearch.trim().toLowerCase();
     return Array.from(map.values())
       .filter((group) => {
+        if (draftQueueDivision && group.employeeDivisionName !== draftQueueDivision) return false;
         if (!q) return true;
         return (
           group.employeeName.toLowerCase().includes(q) ||
@@ -499,7 +501,21 @@ export default function PerformanceCatalogClient({
         );
       })
       .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  }, [activityEntries, draftQueueSearch, isOverrideRole]);
+  }, [activityEntries, draftQueueSearch, draftQueueDivision, isOverrideRole]);
+
+  // Daftar divisi unik dari semua draft pending (sebelum filter search/divisi)
+  const draftDivisionOptions = useMemo(() => {
+    if (!isOverrideRole) return [];
+    const seen = new Set<string>();
+    for (const entry of activityEntries) {
+      if (entry.status === "DIAJUKAN" || entry.status === "DIAJUKAN_ULANG") {
+        if (entry.employeeDivisionName && entry.employeeDivisionName !== "-") {
+          seen.add(entry.employeeDivisionName);
+        }
+      }
+    }
+    return Array.from(seen).sort();
+  }, [activityEntries, isOverrideRole]);
 
   async function handleClearCatalog() {
     setPending(true);
@@ -1188,18 +1204,57 @@ export default function PerformanceCatalogClient({
           </div>
           {isOverrideRole ? (
             <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+              {/* Header */}
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-slate-800">Draft Harian Diajukan — Menunggu Persetujuan HRD</p>
-                <p className="text-xs text-slate-500">{overrideDraftGroups.length} draft</p>
+                <div>
+                  <p className="text-sm font-medium text-slate-800">
+                    Draft Harian Diajukan — Menunggu Persetujuan HRD
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {overrideDraftGroups.length} draft
+                    {draftQueueDivision ? ` · Divisi: ${draftQueueDivision}` : ""}
+                  </p>
+                </div>
               </div>
-              <Input
-                value={draftQueueSearch}
-                onChange={(event) => setDraftQueueSearch(event.target.value)}
-                placeholder="Cari karyawan..."
-              />
+
+              {/* Filter bar */}
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  className="h-9 flex-1 min-w-[180px]"
+                  value={draftQueueSearch}
+                  onChange={(event) => setDraftQueueSearch(event.target.value)}
+                  placeholder="Cari karyawan..."
+                />
+                {draftDivisionOptions.length > 1 && (
+                  <select
+                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm min-w-[160px]"
+                    value={draftQueueDivision}
+                    onChange={(e) => setDraftQueueDivision(e.target.value)}
+                  >
+                    <option value="">Semua Divisi</option>
+                    {draftDivisionOptions.map((div) => (
+                      <option key={div} value={div}>{div}</option>
+                    ))}
+                  </select>
+                )}
+                {(draftQueueSearch || draftQueueDivision) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 px-3 text-xs"
+                    onClick={() => { setDraftQueueSearch(""); setDraftQueueDivision(""); }}
+                  >
+                    Reset filter
+                  </Button>
+                )}
+              </div>
+
               {overrideDraftGroups.length === 0 ? (
                 <p className="rounded-md bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-                  Tidak ada draft harian yang menunggu override.
+                  {draftQueueSearch || draftQueueDivision
+                    ? "Tidak ada draft yang cocok dengan filter."
+                    : "Tidak ada draft harian yang menunggu persetujuan."}
                 </p>
               ) : (
                 <div className="overflow-hidden rounded-md border border-slate-200">
@@ -1215,49 +1270,56 @@ export default function PerformanceCatalogClient({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {overrideDraftGroups.map((group) => (
-                        <tr
-                          key={group.key}
-                          className="cursor-pointer bg-white hover:bg-slate-50/70"
-                          onClick={() => setDraftDetailGroup(group)}
-                        >
-                          <td className="px-3 py-2.5">
-                            <p className="font-medium text-slate-900">{group.employeeName}</p>
-                            <p className="text-xs text-slate-500">{group.employeeCode} · {group.employeeDivisionName}</p>
-                          </td>
-                          <td className="px-3 py-2.5 text-slate-700">{group.workDate}</td>
-                          <td className="px-3 py-2.5 text-center tabular-nums text-slate-700">{group.activities.length}</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-900">{formatPointNumber(group.totalPoints)}</td>
-                          <td className="px-3 py-2.5">
-                            <Badge variant="secondary">
-                              {group.status === "DIAJUKAN_ULANG" ? "Diajukan Ulang" : "Diajukan"}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setDraftDecisionNotes("");
-                                  setDraftDecision({ action: "approve", group });
-                                }}
-                              >
-                                Setujui
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  setDraftDecisionNotes("");
-                                  setDraftDecision({ action: "reject", group });
-                                }}
-                              >
-                                Tolak
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {overrideDraftGroups.map((group) => {
+                        const uniqueJobs = new Set(
+                          group.activities.map((a) =>
+                            resolveActivityJobIdLabel(a.jobIdSnapshot, null, a.notes)
+                          )
+                        ).size;
+                        return (
+                          <tr
+                            key={group.key}
+                            className="cursor-pointer bg-white hover:bg-slate-50/70"
+                            onClick={() => setDraftDetailGroup(group)}
+                          >
+                            <td className="px-3 py-2.5">
+                              <p className="font-medium text-slate-900">{group.employeeName}</p>
+                              <p className="text-xs text-slate-500">{group.employeeCode} · {group.employeeDivisionName}</p>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-700">{group.workDate}</td>
+                            <td className="px-3 py-2.5 text-center tabular-nums text-slate-700">{uniqueJobs}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-900">{formatPointNumber(group.totalPoints)}</td>
+                            <td className="px-3 py-2.5">
+                              <Badge variant="secondary">
+                                {group.status === "DIAJUKAN_ULANG" ? "Diajukan Ulang" : "Diajukan"}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setDraftDecisionNotes("");
+                                    setDraftDecision({ action: "approve", group });
+                                  }}
+                                >
+                                  Setujui
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setDraftDecisionNotes("");
+                                    setDraftDecision({ action: "reject", group });
+                                  }}
+                                >
+                                  Tolak
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   <p className="border-t border-slate-200 px-3 py-2 text-xs text-slate-400">
