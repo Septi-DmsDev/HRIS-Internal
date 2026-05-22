@@ -94,10 +94,10 @@ Untuk payroll:
 - bonus disiplin tier memakai rule jumlah telat periode (`0 => 100%`, `<=3 => 90%`, `<=7 => 80%`, `>=8 => 0%`);
 - untuk karyawan yang lulus training di tengah periode, bonus fulltime dan bonus disiplin diprorate dengan rasio sisa hari kerja terjadwal sejak tanggal lulus terhadap total hari kerja terjadwal periode;
 - tunjangan masa kerja dihitung dari `training_graduation_date` melalui `resolveTenureAllowanceAmount()` dengan bucket anchor:
-  - Jan-Feb-Mar -> April tahun berikutnya;
-  - Apr-Mei-Jun -> Juli tahun berikutnya;
-  - Jul-Ags-Sep -> Oktober tahun berikutnya;
-  - Okt-Nov-Des -> Januari tahun berikutnya;
+  - Jan-Feb-Mar -> April setelah 13-15 bulan;
+  - Apr-Mei-Jun -> Juli setelah 13-15 bulan;
+  - Jul-Ags-Sep -> Oktober setelah 13-15 bulan;
+  - Okt-Nov-Des -> Januari setelah 13-15 bulan;
 - kalkulasi TEAMWORK/MANAGERIAL memakai engine payroll;
 - PDF/XLSX memakai builder server-side.
 

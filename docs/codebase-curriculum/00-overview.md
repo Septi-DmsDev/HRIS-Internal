@@ -134,10 +134,10 @@ Employee Link
 
 Catatan implementasi payroll terbaru:
 - tunjangan masa kerja dihitung dari `training_graduation_date` via `resolveTenureAllowanceAmount()` dengan bucket:
-  - Jan-Feb-Mar -> efektif April tahun berikutnya;
-  - Apr-Mei-Jun -> efektif Juli tahun berikutnya;
-  - Jul-Ags-Sep -> efektif Oktober tahun berikutnya;
-  - Okt-Nov-Des -> efektif Januari tahun berikutnya.
+  - Jan-Feb-Mar -> efektif April setelah 13-15 bulan;
+  - Apr-Mei-Jun -> efektif Juli setelah 13-15 bulan;
+  - Jul-Ags-Sep -> efektif Oktober setelah 13-15 bulan;
+  - Okt-Nov-Des -> efektif Januari setelah 13-15 bulan.
 
 ## 8. Risiko Teknis Paling Penting
 

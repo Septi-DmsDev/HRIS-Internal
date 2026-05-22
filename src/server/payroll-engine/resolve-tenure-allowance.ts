@@ -18,8 +18,10 @@ export function resolveTenureYears(trainingGraduationDate: Date | null | undefin
   const graduationMonth = trainingGraduationDate.getMonth() + 1;
   const anchorMonth = resolveAnchorMonth(graduationMonth);
 
-  // Tahun pertama selalu efektif di bucket month pada tahun berikutnya.
-  const firstEffective = new Date(graduationYear + 1, anchorMonth - 1, 1);
+  // Tunjangan pertama aktif pada quarter anchor pertama setelah 1 tahun masa kerja.
+  // Hasilnya menjadi 13-15 bulan setelah tanggal lulus training.
+  const firstEffectiveYear = graduationYear + (anchorMonth > graduationMonth ? 1 : 2);
+  const firstEffective = new Date(firstEffectiveYear, anchorMonth - 1, 1);
   if (referenceDate < firstEffective) return 0;
 
   const monthsDiff = toMonthIndex(referenceDate) - toMonthIndex(firstEffective);
