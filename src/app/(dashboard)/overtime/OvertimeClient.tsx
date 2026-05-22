@@ -450,6 +450,9 @@ export default function OvertimeClient({
     setOpenDraftDetail(true);
   }
 
+  const myPendingReqs = useMemo(() => myRequests.filter((r) => r.status === "PENDING"), [myRequests]);
+  const myHistoryReqs = useMemo(() => myRequests.filter((r) => r.status !== "PENDING"), [myRequests]);
+
   const groupedDraft = useMemo(() => {
     const map = new Map<string, typeof draftItems>();
     const order: string[] = [];
@@ -570,9 +573,15 @@ export default function OvertimeClient({
         </div>
       ) : null}
 
+      {/* Tabel pengajuan aktif (PENDING) untuk canSubmit, atau riwayat processed untuk approver/monitor */}
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
         <div className="border-b border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">{canSubmit ? "Riwayat Pengajuan Saya" : canMonitor ? "Riwayat Overtime (Monitoring HRD)" : "Riwayat Pengajuan Overtime"}</h3>
+          <h3 className="text-sm font-semibold text-slate-900">
+            {canSubmit ? "Pengajuan Aktif Saya" : canMonitor ? "Riwayat Overtime (Monitoring HRD)" : "Riwayat Pengajuan Overtime"}
+          </h3>
+          {canSubmit ? (
+            <p className="text-xs text-slate-500 mt-0.5">Pengajuan yang sedang menunggu review</p>
+          ) : null}
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -590,14 +599,14 @@ export default function OvertimeClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(canSubmit ? myRequests : processedRequests).length === 0 ? (
-              <tr><td colSpan={canSubmit || canApprove || canMonitor ? 8 : 7} className="px-3 py-8 text-center text-sm text-slate-500">Belum ada data overtime.</td></tr>
-            ) : (canSubmit ? myRequests : processedRequests).map((row) => (
-              <tr
-                key={row.id}
-                className={row.status === "APPROVED" && row.draftItems.length > 0 ? "cursor-pointer bg-white hover:bg-slate-50/50" : "bg-white"}
-                onClick={() => openDraftDetailModal(row)}
-              >
+            {(canSubmit ? myPendingReqs : processedRequests).length === 0 ? (
+              <tr>
+                <td colSpan={canSubmit || canApprove || canMonitor ? 8 : 7} className="px-3 py-8 text-center text-sm text-slate-500">
+                  {canSubmit ? "Tidak ada pengajuan yang sedang menunggu review." : "Belum ada data overtime."}
+                </td>
+              </tr>
+            ) : (canSubmit ? myPendingReqs : processedRequests).map((row) => (
+              <tr key={row.id} className="bg-white">
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-900">{row.employeeName}</p>
                   <p className="text-xs text-slate-500">{row.employeeCode} · {row.divisionName}</p>
@@ -622,11 +631,6 @@ export default function OvertimeClient({
                 {canSubmit || canApprove || canMonitor ? (
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {canSubmit && row.status === "APPROVED" ? (
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openFillDraft(row); }}>
-                          Isi Draft
-                        </Button>
-                      ) : null}
                       <Button
                         size="sm"
                         variant="destructive"
@@ -646,6 +650,79 @@ export default function OvertimeClient({
           </tbody>
         </table>
       </div>
+
+      {/* History section: riwayat pengajuan yang sudah diproses (APPROVED / REJECTED) */}
+      {canSubmit ? (
+        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-900">Riwayat Lembur &amp; Overtime</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Pengajuan yang sudah disetujui atau ditolak</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Tanggal</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Jenis</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Nominal</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Poin</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Tgl Proses</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Catatan Review</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {myHistoryReqs.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-500">
+                    Belum ada riwayat pengajuan yang diproses.
+                  </td>
+                </tr>
+              ) : myHistoryReqs.map((row) => (
+                <tr
+                  key={row.id}
+                  className={row.status === "APPROVED" && row.draftItems.length > 0 ? "cursor-pointer bg-white hover:bg-slate-50/50" : "bg-white"}
+                  onClick={() => openDraftDetailModal(row)}
+                >
+                  <td className="px-3 py-2 text-slate-700">{row.requestDate}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    <div className="flex flex-col gap-1">
+                      <span>{OVERTIME_TYPE_LABEL[row.overtimeType]}</span>
+                      {row.overtimeType === "OVERTIME_3H" ? (
+                        <span className="text-xs text-slate-500">{OVERTIME_PLACEMENT_LABEL[row.overtimePlacement]}</span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-900">{currency(row.totalAmount)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatOneDecimal(row.draftTotalPoints)}</td>
+                  <td className="px-3 py-2">
+                    <Badge variant={row.status === "APPROVED" ? "default" : "destructive"}>
+                      {row.status === "APPROVED" ? "Disetujui" : "Ditolak"}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">
+                    {row.status === "APPROVED" ? (row.approvedAt ?? "-") : (row.rejectedAt ?? "-")}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{row.reviewNotes ?? "-"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {row.status === "APPROVED" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => { e.stopPropagation(); openFillDraft(row); }}
+                        >
+                          Isi Draft
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {openTwSubmit ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
