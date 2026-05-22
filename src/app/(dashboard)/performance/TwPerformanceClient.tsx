@@ -689,7 +689,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
         const totalJobs = new Set(
           entries.map((e) => resolveActivityJobIdLabel(e.jobIdSnapshot, null, e.notes))
         ).size;
-        const isShowPoints = ["approved", "locked"].includes(statusType);
+        const isShowPoints = ["pending", "approved", "locked"].includes(statusType);
         const totalPoints = isShowPoints
           ? entries.reduce((s, e) => s + Number(e.totalPoints), 0)
           : 0;
@@ -1109,7 +1109,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
                         {group.totalJobs}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900">
-                        {["approved", "locked"].includes(group.statusType)
+                        {["pending", "approved", "locked"].includes(group.statusType)
                           ? formatPointNumber(group.totalPoints)
                           : "—"}
                       </td>
