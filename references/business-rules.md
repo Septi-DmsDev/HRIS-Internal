@@ -33,17 +33,13 @@ Payroll harus memakai snapshot awal periode untuk divisi payroll, jabatan, grade
 
 ## Poin Kinerja MITRA_KERJA / BORONGAN / TRAINING
 
-Target harian:
-
-```text
-Default 13.000 poin per hari
-Divisi Offset 39.000 poin per hari
-```
+Target harian diambil dari master divisi (`divisions.daily_point_target`).
+Default master adalah 13.000 poin per hari; divisi Offset disetel 39.000 poin per hari lewat master.
 
 Rumus:
 
 ```text
-Target Bulanan = target harian hasil resolusi divisi snapshot x jumlah hari masuk target
+Target Bulanan = target harian master divisi snapshot x jumlah hari aktif/non-OFF pada scheduler
 Persentase Kinerja = total poin approved / target bulanan x 100%
 ```
 
@@ -51,12 +47,12 @@ Status hari:
 
 | Status | Masuk target | Target | Poin aktual |
 |---|---:|---:|---:|
-| Kerja normal | Ya | 13.000 default / 39.000 Offset | sesuai input approved |
-| Setengah hari | Ya | 13.000 default / 39.000 Offset | sesuai input approved |
-| Alpa | Ya | 13.000 default / 39.000 Offset | 0 |
-| Cuti approved | Tidak | 0 | 0 |
-| Sakit approved | Tidak | 0 | 0 |
-| Izin approved | Tidak | 0 | 0 |
+| Kerja normal | Ya | target harian master divisi | sesuai input approved |
+| Setengah hari | Ya | target harian master divisi | sesuai input approved |
+| Alpa | Ya | target harian master divisi | 0 |
+| Cuti disetujui final | Tidak | 0 | 0 |
+| Sakit disetujui final | Tidak | 0 | 0 |
+| Izin disetujui final | Tidak | 0 | 0 |
 | Off/libur jadwal | Tidak | 0 | 0 |
 
 ## Bonus Kinerja MITRA_KERJA / BORONGAN
@@ -123,13 +119,14 @@ Standar minimal lulus training:
 Rule target poin:
 
 ```text
-Jika divisi payroll snapshot = Offset -> target harian = 39.000
-Jika divisi payroll snapshot != Offset -> target harian = 13.000
+Target harian = divisions.daily_point_target dari divisi payroll snapshot / divisi awal periode
+Target bulanan = target harian x jumlah hari aktif/non-OFF pada scheduler
 ```
 
 Rule ini dipakai untuk:
 - target harian,
 - target bulanan,
+- dashboard personal,
 - persentase performa bulanan,
 - evaluasi training berbasis poin.
 
@@ -160,7 +157,10 @@ Default:
 - izin/sakit/cuti harian tidak dibayar;
 - gaji pokok dipotong;
 - bonus fulltime tidak didapat;
-- target poin tidak dihitung jika ticket approved.
+- target poin tidak dihitung jika ticket disetujui final.
+- Hari aktif/non-OFF adalah tanggal yang punya assignment shift di `employee_schedule_assignments`; tanggal tanpa assignment dianggap OFF dan tidak masuk target bulanan.
+- ticket harian penuh yang disetujui final mengosongkan assignment jadwal di `/scheduler` menjadi OFF untuk rentang tanggal ticket; `/schedule` karyawan membaca hasil assignment scheduler tersebut.
+- `IZIN_JAM` dan `SETENGAH_HARI` tidak mengubah jadwal menjadi OFF penuh.
 
 Untuk form poin-based:
 - field yang ditampilkan cukup jenis tiket, rentang tanggal/durasi, alasan/catatan, dan bukti bila memang diwajibkan;
@@ -187,7 +187,7 @@ Aturan payroll:
 - bonus fulltime hanya eligible jika seluruh hari kerja terjadwal pada periode memiliki record kerja dan semuanya `HADIR`;
 - `ALPA`, `IZIN`, `SAKIT`, atau `CUTI` menggugurkan bonus fulltime dan bonus disiplin;
 - `TELAT` tidak menggugurkan fulltime, tetapi menggugurkan bonus disiplin;
-- ticket izin/sakit/cuti yang approved tetap menggugurkan fulltime meskipun gaji pokoknya tidak selalu dipotong;
+- ticket izin/sakit/cuti yang disetujui final tetap menggugurkan fulltime meskipun gaji pokoknya tidak selalu dipotong;
 - record `OFF` tidak dihitung sebagai hari kerja.
 
 ## Payroll
@@ -221,7 +221,7 @@ Gaji Pokok Dibayar
 Bonus fulltime:
 - hanya jika data absensi periode lengkap dan seluruh hari kerja terjadwal berstatus `HADIR`;
 - jika data absensi belum ada, bonus fulltime dibayar `0`;
-- izin/sakit/cuti/alpa dan ticket cuti berbayar tetap menggugurkan fulltime.
+- izin/sakit/cuti/alpa dan ticket cuti berbayar yang disetujui final tetap menggugurkan fulltime.
 
 Bonus disiplin:
 - mengikuti data absensi, bukan input persentase manual;

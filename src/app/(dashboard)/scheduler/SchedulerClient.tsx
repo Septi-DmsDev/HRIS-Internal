@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/tables/DataTable";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { assignEmployeeSchedule, assignEmployeeSchedulesBulk, getEmployeeScheduleDetail } from "@/server/actions/schedule";
 import { CalendarCog, CalendarDays, CheckCircle2, Clock, Filter, Loader2, Users } from "lucide-react";
 import type { MyScheduleResult } from "@/server/actions/schedule";
+import { cn } from "@/lib/utils";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
 import {
@@ -76,6 +78,70 @@ type BulkForm = {
 };
 
 const DAY_NAMES_ID = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
+const SHIFT_COLOR_THEMES = [
+  {
+    text: "text-sky-700",
+    border: "border-sky-200",
+    bg: "bg-sky-50",
+    badge: "border-sky-200 bg-sky-50 text-sky-700",
+    optionBg: "#eff6ff",
+    optionColor: "#0369a1",
+  },
+  {
+    text: "text-emerald-700",
+    border: "border-emerald-200",
+    bg: "bg-emerald-50",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    optionBg: "#ecfdf5",
+    optionColor: "#047857",
+  },
+  {
+    text: "text-amber-700",
+    border: "border-amber-200",
+    bg: "bg-amber-50",
+    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    optionBg: "#fffbeb",
+    optionColor: "#b45309",
+  },
+  {
+    text: "text-violet-700",
+    border: "border-violet-200",
+    bg: "bg-violet-50",
+    badge: "border-violet-200 bg-violet-50 text-violet-700",
+    optionBg: "#f5f3ff",
+    optionColor: "#6d28d9",
+  },
+  {
+    text: "text-rose-700",
+    border: "border-rose-200",
+    bg: "bg-rose-50",
+    badge: "border-rose-200 bg-rose-50 text-rose-700",
+    optionBg: "#fff1f2",
+    optionColor: "#be123c",
+  },
+  {
+    text: "text-cyan-700",
+    border: "border-cyan-200",
+    bg: "bg-cyan-50",
+    badge: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    optionBg: "#ecfeff",
+    optionColor: "#0e7490",
+  },
+] as const;
+
+const OFF_SHIFT_THEME = {
+  text: "text-slate-500",
+  border: "border-slate-200",
+  bg: "bg-slate-50",
+  badge: "border-slate-200 bg-slate-50 text-slate-500",
+  optionBg: "#f8fafc",
+  optionColor: "#64748b",
+};
+
+function hashShiftCode(code: string) {
+  return [...code].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
 
 function getTodayStr(): string {
   const now = new Date();
@@ -157,6 +223,7 @@ export default function SchedulerClient({
   const [matrixEndDate, setMatrixEndDate] = useState(periodEnd);
   const [matrixDate, setMatrixDate] = useState(periodStart);
   const [matrixScheduleId, setMatrixScheduleId] = useState("");
+  const [matrixCellOverrides, setMatrixCellOverrides] = useState<Record<string, string>>({});
   const [matrixError, setMatrixError] = useState<string | null>(null);
   const [matrixSuccess, setMatrixSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +235,50 @@ export default function SchedulerClient({
   const [scheduleDetailError, setScheduleDetailError] = useState<string | null>(null);
   const [scheduleDetail, setScheduleDetail] = useState<MyScheduleResult | null>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+
+  const scheduleOptionMap = useMemo(
+    () => new Map(scheduleOptions.map((option) => [option.id, option] as const)),
+    [scheduleOptions]
+  );
+
+  const scheduleThemeMap = useMemo(() => {
+    const map = new Map<string, (typeof SHIFT_COLOR_THEMES)[number]>();
+    for (const option of scheduleOptions) {
+      map.set(option.id, SHIFT_COLOR_THEMES[hashShiftCode(option.code) % SHIFT_COLOR_THEMES.length]);
+    }
+    return map;
+  }, [scheduleOptions]);
+
+  function getScheduleTheme(scheduleId: string) {
+    if (!scheduleId) return OFF_SHIFT_THEME;
+    return scheduleThemeMap.get(scheduleId) ?? SHIFT_COLOR_THEMES[0];
+  }
+
+  function renderShiftOption(option: ScheduleOption) {
+    const theme = getScheduleTheme(option.id);
+    return (
+      <option
+        key={option.id}
+        value={option.id}
+        style={{ backgroundColor: theme.optionBg, color: theme.optionColor }}
+      >
+        {option.code}
+      </option>
+    );
+  }
+
+  function renderShiftNameOption(option: ScheduleOption) {
+    const theme = getScheduleTheme(option.id);
+    return (
+      <option
+        key={option.id}
+        value={option.id}
+        style={{ backgroundColor: theme.optionBg, color: theme.optionColor }}
+      >
+        {option.name} ({option.code})
+      </option>
+    );
+  }
 
   const branchOptions = useMemo(
     () =>
@@ -238,6 +349,10 @@ export default function SchedulerClient({
     }
   }, [someFilteredSelected]);
 
+  useEffect(() => {
+    setMatrixCellOverrides({});
+  }, [assignmentRanges]);
+
   function resetFilters() {
     setBranchFilter("");
     setDivisionFilter("");
@@ -291,26 +406,27 @@ export default function SchedulerClient({
     return "";
   }
 
-  async function applySingleCell(employeeId: string, dateKey: string, scheduleId: string) {
+  async function applySingleCell(employeeId: string, dateKey: string, scheduleId: string, previousScheduleId: string) {
     setMatrixError(null);
     setMatrixSuccess(null);
-    if (!scheduleId) {
-      setMatrixError("Pilih shift untuk sel ini.");
-      return;
-    }
+    const cellKey = `${employeeId}:${dateKey}`;
     startTransition(async () => {
       const result = await assignEmployeeSchedule({
         employeeId,
-        scheduleId,
+        scheduleId: scheduleId || null,
         effectiveStartDate: dateKey,
         effectiveEndDate: dateKey,
         notes: "Matrix scheduler",
       });
       if ("error" in result) {
+        setMatrixCellOverrides((current) => ({
+          ...current,
+          [cellKey]: previousScheduleId,
+        }));
         setMatrixError(result.error);
         return;
       }
-      setMatrixSuccess(`Shift tanggal ${formatDateDisplay(dateKey)} tersimpan.`);
+      setMatrixSuccess(`${scheduleId ? "Shift" : "OFF"} tanggal ${formatDateDisplay(dateKey)} tersimpan.`);
       router.refresh();
     });
   }
@@ -551,42 +667,48 @@ export default function SchedulerClient({
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <select
-            value={quickScheduleByEmployee[row.original.employeeId] ?? row.original.scheduleId ?? ""}
-            onChange={(event) =>
-              setQuickScheduleByEmployee((current) => ({
-                ...current,
-                [row.original.employeeId]: event.target.value,
-              }))
-            }
-            className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
-          >
-            <option value="">Pilih shift</option>
-            {scheduleOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.code}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            className="h-8 bg-teal-600 text-xs hover:bg-teal-700"
-            onClick={() => handleQuickAssign(row.original)}
-          >
-            Terapkan
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs font-semibold border-slate-200 hover:border-teal-300 hover:text-teal-700 hover:bg-teal-50 transition-colors"
-            onClick={() => openDialog(row.original)}
-          >
-            Detail
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const selectedScheduleId = quickScheduleByEmployee[row.original.employeeId] ?? row.original.scheduleId ?? "";
+        const theme = getScheduleTheme(selectedScheduleId);
+
+        return (
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedScheduleId}
+              onChange={(event) =>
+                setQuickScheduleByEmployee((current) => ({
+                  ...current,
+                  [row.original.employeeId]: event.target.value,
+                }))
+              }
+              className={cn(
+                "h-8 rounded-md border bg-white px-2 text-xs font-semibold",
+                theme.border,
+                theme.text,
+                theme.bg
+              )}
+            >
+              <option value="">Pilih shift</option>
+              {scheduleOptions.map(renderShiftOption)}
+            </select>
+            <Button
+              size="sm"
+              className="h-8 bg-teal-600 text-xs hover:bg-teal-700"
+              onClick={() => handleQuickAssign(row.original)}
+            >
+              Terapkan
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs font-semibold border-slate-200 hover:border-teal-300 hover:text-teal-700 hover:bg-teal-50 transition-colors"
+              onClick={() => openDialog(row.original)}
+            >
+              Detail
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -650,16 +772,29 @@ export default function SchedulerClient({
                 <select
                   value={matrixScheduleId}
                   onChange={(e) => setMatrixScheduleId(e.target.value)}
-                  className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700"
+                  className={cn(
+                    "h-8 rounded-md border bg-white px-2 text-xs font-semibold",
+                    getScheduleTheme(matrixScheduleId).border,
+                    getScheduleTheme(matrixScheduleId).text,
+                    getScheduleTheme(matrixScheduleId).bg
+                  )}
                 >
                   <option value="">Pilih shift massal</option>
-                  {scheduleOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.code}</option>
-                  ))}
+                  {scheduleOptions.map(renderShiftOption)}
                 </select>
                 <Button type="button" size="sm" className="h-8 bg-teal-600 hover:bg-teal-700 text-xs" onClick={() => void applySelectedByDate()}>
                   Terapkan ke Terpilih
                 </Button>
+              </div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline" className={cn("font-mono", OFF_SHIFT_THEME.badge)}>
+                  OFF
+                </Badge>
+                {scheduleOptions.map((option) => (
+                  <Badge key={option.id} variant="outline" className={cn("font-mono", getScheduleTheme(option.id).badge)}>
+                    {option.code}
+                  </Badge>
+                ))}
               </div>
               {matrixError ? <p className="text-xs text-red-600">{matrixError}</p> : null}
               {matrixSuccess ? <p className="text-xs text-teal-700">{matrixSuccess}</p> : null}
@@ -703,17 +838,30 @@ export default function SchedulerClient({
                         </td>
                         {periodDates.map((dateKey) => {
                           const selectedScheduleId = resolveScheduleAtDate(member.employeeId, dateKey);
+                          const cellKey = `${member.employeeId}:${dateKey}`;
+                          const currentScheduleId = matrixCellOverrides[cellKey] ?? selectedScheduleId;
+                          const theme = getScheduleTheme(currentScheduleId);
                           return (
                             <td key={`${member.employeeId}-${dateKey}`} className="border-r px-1 py-1">
                               <select
-                                defaultValue={selectedScheduleId}
-                                onChange={(e) => void applySingleCell(member.employeeId, dateKey, e.target.value)}
-                                className="h-7 w-[74px] rounded border border-slate-200 bg-white px-1 text-[10px]"
+                                value={currentScheduleId}
+                                onChange={(e) => {
+                                  const nextScheduleId = e.target.value;
+                                  setMatrixCellOverrides((current) => ({
+                                    ...current,
+                                    [cellKey]: nextScheduleId,
+                                  }));
+                                  void applySingleCell(member.employeeId, dateKey, nextScheduleId, currentScheduleId);
+                                }}
+                                className={cn(
+                                  "h-7 w-[74px] rounded border px-1 text-[10px] font-semibold",
+                                  theme.border,
+                                  theme.text,
+                                  theme.bg
+                                )}
                               >
-                                <option value="">OFF</option>
-                                {scheduleOptions.map((opt) => (
-                                  <option key={opt.id} value={opt.id}>{opt.code}</option>
-                                ))}
+                                <option value="" style={{ backgroundColor: OFF_SHIFT_THEME.optionBg, color: OFF_SHIFT_THEME.optionColor }}>OFF</option>
+                                {scheduleOptions.map(renderShiftOption)}
                               </select>
                             </td>
                           );
@@ -845,16 +993,22 @@ export default function SchedulerClient({
                 id="scheduleId"
                 value={form.scheduleId}
                 onChange={(e) => setForm((f) => ({ ...f, scheduleId: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                className={cn(
+                  "w-full rounded-lg border bg-white px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors",
+                  getScheduleTheme(form.scheduleId).border,
+                  getScheduleTheme(form.scheduleId).text,
+                  getScheduleTheme(form.scheduleId).bg
+                )}
                 required
               >
                 <option value="">— Pilih master shift —</option>
-                {scheduleOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.name} ({opt.code})
-                  </option>
-                ))}
+                {scheduleOptions.map(renderShiftNameOption)}
               </select>
+              {form.scheduleId ? (
+                <Badge variant="outline" className={cn("font-mono", getScheduleTheme(form.scheduleId).badge)}>
+                  {scheduleOptionMap.get(form.scheduleId)?.code ?? "SHIFT"}
+                </Badge>
+              ) : null}
             </div>
 
             {/* Effective date */}
@@ -979,16 +1133,22 @@ export default function SchedulerClient({
                 id="bulkScheduleId"
                 value={bulkForm.scheduleId}
                 onChange={(event) => setBulkForm((current) => ({ ...current, scheduleId: event.target.value }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
+                className={cn(
+                  "w-full rounded-lg border bg-white px-3 py-2.5 text-sm font-semibold",
+                  getScheduleTheme(bulkForm.scheduleId).border,
+                  getScheduleTheme(bulkForm.scheduleId).text,
+                  getScheduleTheme(bulkForm.scheduleId).bg
+                )}
                 required
               >
                 <option value="">— Pilih master shift —</option>
-                {scheduleOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.name} ({opt.code})
-                  </option>
-                ))}
+                {scheduleOptions.map(renderShiftNameOption)}
               </select>
+              {bulkForm.scheduleId ? (
+                <Badge variant="outline" className={cn("font-mono", getScheduleTheme(bulkForm.scheduleId).badge)}>
+                  {scheduleOptionMap.get(bulkForm.scheduleId)?.code ?? "SHIFT"}
+                </Badge>
+              ) : null}
             </div>
 
             <div className="space-y-1.5">

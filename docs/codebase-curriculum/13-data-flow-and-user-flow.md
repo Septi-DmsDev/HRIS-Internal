@@ -140,7 +140,12 @@ Ticket dibuat
 → jika eligible:
    leave_quotas dipakai sesuai jenis tiket
 → payrollImpact tersimpan di ticket
+→ untuk ticket harian penuh, employee_schedule_assignments dikosongkan pada rentang ticket
+→ target poin bulanan ikut turun karena hari OFF/kosong assignment tidak dihitung
 → payroll membaca ticket approved dalam periode aktif
+→ /scheduler menampilkan OFF dari assignment jadwal
+→ /schedule karyawan membaca assignment jadwal yang sama
+→ dropdown per tanggal di /scheduler bisa set shift atau OFF langsung
 ```
 
 ## 9. Data Flow Review dan Incident

@@ -12,6 +12,7 @@ import type { UserRole } from "@/types";
 import { divisions } from "@/lib/db/schema/master";
 import { resolveLeaveQuotaEligibility } from "@/server/ticketing-engine/resolve-leave-quota-eligibility";
 import { revokeEmployeeSystemAccess } from "@/server/services/employee-access-service";
+import { replaceEmployeeScheduleRange } from "@/server/services/schedule-assignment-service";
 
 const APPROVER_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KABAG"];
 const SELF_SERVICE_TICKET_ROLES: UserRole[] = ["KABAG", "SPV", "MANAGERIAL", "FINANCE", "TEAMWORK", "PAYROLL_VIEWER"];
@@ -19,6 +20,18 @@ const TICKET_READ_ROLES: UserRole[] = ["SUPER_ADMIN", "KABAG", "SPV", "TEAMWORK"
 const DIV_SCOPED_ROLES: UserRole[] = ["SPV", "KABAG"];
 const SPV_REVIEW_SUBMITTER_ROLES: UserRole[] = ["TEAMWORK"];
 const DIRECT_HRD_SUBMITTER_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KABAG", "MANAGERIAL", "FINANCE", "PAYROLL_VIEWER"];
+const FULL_DAY_SCHEDULE_OFF_TICKET_TYPES = [
+  "CUTI",
+  "CUTI_TAHUNAN",
+  "CUTI_BULANAN",
+  "CUTI_HAMIL_LAHIR",
+  "CUTI_NIKAH",
+  "SAKIT",
+  "IZIN",
+  "IZIN_ACARA",
+  "MENINGGAL",
+  "EMERGENCY",
+] as const;
 let ticketStatusEnumValuesPromise: Promise<Set<string>> | null = null;
 let ticketAuditActionEnumValuesPromise: Promise<Set<string>> | null = null;
 
@@ -291,6 +304,24 @@ async function getSubmitterRole(userId: string) {
   return (row?.role as UserRole | undefined) ?? null;
 }
 
+function revalidateTicketListPaths() {
+  revalidatePath("/tickets");
+  revalidatePath("/ticketingapproval");
+}
+
+function revalidateTicketSchedulePaths() {
+  revalidatePath("/schedule");
+  revalidatePath("/scheduler");
+  revalidatePath("/dashboard");
+  revalidatePath("/performance");
+}
+
+function shouldApplyTicketScheduleOff(ticketType: string) {
+  return FULL_DAY_SCHEDULE_OFF_TICKET_TYPES.includes(
+    ticketType as (typeof FULL_DAY_SCHEDULE_OFF_TICKET_TYPES)[number]
+  );
+}
+
 export async function getTickets() {
   await requireAuth();
   const roleRow = await getCurrentUserRoleRow();
@@ -544,8 +575,8 @@ export async function createTicket(input: unknown) {
     throw e;
   }
 
-  revalidatePath("/tickets");
-  revalidatePath("/ticketingapproval");
+  revalidateTicketListPaths();
+  revalidateTicketSchedulePaths();
   return { success: true };
 }
 
@@ -568,6 +599,7 @@ export async function approveTicket(input: unknown) {
       employeeId: attendanceTickets.employeeId,
       ticketType: attendanceTickets.ticketType,
       startDate: attendanceTickets.startDate,
+      endDate: attendanceTickets.endDate,
       status: attendanceTickets.status,
       createdByUserId: attendanceTickets.createdByUserId,
     })
@@ -629,8 +661,8 @@ export async function approveTicket(input: unknown) {
       },
     });
 
-    revalidatePath("/tickets");
-    revalidatePath("/ticketingapproval");
+    revalidateTicketListPaths();
+    revalidateTicketSchedulePaths();
     return { success: true };
   }
 
@@ -720,6 +752,17 @@ export async function approveTicket(input: unknown) {
       },
     });
 
+    if (shouldApplyTicketScheduleOff(ticket.ticketType)) {
+      await replaceEmployeeScheduleRange(
+        tx,
+        ticket.employeeId,
+        null,
+        ticket.startDate,
+        ticket.endDate,
+        `Auto OFF dari tiket ${ticket.ticketType} ${ticket.id}`
+      );
+    }
+
     if (ticket.ticketType === "RESIGN") {
       await tx
         .update(employees)
@@ -738,8 +781,8 @@ export async function approveTicket(input: unknown) {
     await revokeEmployeeSystemAccess(ticket.employeeId);
   }
 
-  revalidatePath("/tickets");
-  revalidatePath("/ticketingapproval");
+  revalidateTicketListPaths();
+  revalidateTicketSchedulePaths();
   revalidatePath("/employees");
   revalidatePath("/users");
   return { success: true };
@@ -847,8 +890,8 @@ export async function rejectTicket(input: unknown) {
     return { error: "Gagal menyimpan audit penolakan tiket. Silakan coba lagi." };
   }
 
-  revalidatePath("/tickets");
-  revalidatePath("/ticketingapproval");
+  revalidateTicketListPaths();
+  revalidateTicketSchedulePaths();
   return auditSkipped
     ? { success: true, warning: "Tiket berhasil ditolak, tetapi audit log belum tersimpan karena konfigurasi audit belum valid." }
     : { success: true };
@@ -882,7 +925,8 @@ export async function cancelTicket(ticketId: string) {
     .set({ status: "CANCELLED", updatedAt: new Date() })
     .where(eq(attendanceTickets.id, ticketId));
 
-  revalidatePath("/tickets");
+  revalidateTicketListPaths();
+  revalidateTicketSchedulePaths();
   return { success: true };
 }
 
@@ -1033,6 +1077,6 @@ export async function generateLeaveQuota(employeeId: string, year: number) {
     eventQuotaUsed: 0,
   });
 
-  revalidatePath("/tickets");
+  revalidateTicketListPaths();
   return { success: true };
 }

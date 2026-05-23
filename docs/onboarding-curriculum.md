@@ -107,7 +107,7 @@ Rule penting:
 | `src/server/payroll-engine/*` | Payroll period, bonus level, payroll calculators, payslip, export, summary. |
 | `src/server/ticketing-engine/*` | Helper eligibility leave quota. |
 | `src/server/review-engine/*` | Helper reviewer employee link. |
-| `src/server/services/*` | Helper query reusable. |
+| `src/server/services/*` | Helper query reusable, termasuk service range assignment jadwal. |
 
 ## 5. File Penting per Area
 
@@ -139,7 +139,7 @@ Catatan:
 
 | File | Fungsi |
 |---|---|
-| `src/config/constants.ts` | Target 13.000, OFFSET 39.000, gaji default, bonus level. |
+| `src/config/constants.ts` | Fallback target 13.000/OFFSET 39.000, gaji default, bonus level. Target schedule/performa membaca `divisions.daily_point_target` dari master divisi. |
 | `src/lib/db/schema/point.ts` | Katalog poin, aktivitas, approval log, monthly performance. |
 | `src/server/actions/performance.ts` | Workspace, save/submit/approve/reject, batch approval, monthly generate. |
 | `src/server/actions/point-catalog.ts` | Import/sync/update/delete katalog poin. |

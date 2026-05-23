@@ -12,6 +12,13 @@ export async function getDivisions() {
   return db.select().from(divisions).orderBy(divisions.name);
 }
 
+function revalidateDivisionTargetPaths() {
+  revalidatePath("/master/divisions");
+  revalidatePath("/schedule");
+  revalidatePath("/dashboard");
+  revalidatePath("/performance");
+}
+
 export async function createDivision(formData: FormData) {
   const authError = await checkRole(["HRD", "SUPER_ADMIN"]);
   if (authError) return authError;
@@ -37,7 +44,7 @@ export async function createDivision(formData: FormData) {
     throw e;
   }
 
-  revalidatePath("/master/divisions");
+  revalidateDivisionTargetPaths();
   return { success: true };
 }
 
@@ -72,7 +79,7 @@ export async function updateDivision(id: string, formData: FormData) {
     throw e;
   }
 
-  revalidatePath("/master/divisions");
+  revalidateDivisionTargetPaths();
   return { success: true };
 }
 
@@ -88,6 +95,6 @@ export async function deleteDivision(id: string) {
     throw e;
   }
 
-  revalidatePath("/master/divisions");
+  revalidateDivisionTargetPaths();
   return { success: true };
 }

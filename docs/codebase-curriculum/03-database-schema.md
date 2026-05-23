@@ -56,7 +56,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
 | `branches` | `name`, `address`, `is_active` | master cabang/penempatan | employee, master data, payroll snapshot |
-| `divisions` | `name`, `code`, `branch_id`, `training_pass_percent`, `is_active` | master divisi dan standar lulus training | employee, performance, ticketing, training, payroll |
+| `divisions` | `name`, `code`, `branch_id`, `training_pass_percent`, `daily_point_target`, `is_active` | master divisi, standar lulus training, dan target poin harian | employee, schedule, performance, ticketing, training, payroll |
 | `positions` | `name`, `code`, `employee_group`, `is_active` | master jabatan dan kelompok karyawan | employee, payroll snapshot |
 | `grades` | `name`, `code`, `description`, `is_active` | master grade | employee, payroll snapshot |
 
@@ -82,7 +82,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `employee_status_histories` | `previous_employment_status`, `new_employment_status`, `previous_payroll_status`, `new_payroll_status` | histori status kerja/payroll | employee, audit manual |
 | `work_schedules` | `code`, `name`, `description`, `is_active` | template jadwal mingguan | master data, employee, performance, payroll |
 | `work_shift_masters` | `code`, `name`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_tolerance_minutes`, `is_overnight`, `applicable_division_codes` | master shift dan toleransi absensi | master data, absensi, payroll |
-| `work_schedule_days` | `schedule_id`, `day_of_week`, `day_status`, `is_working_day`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_start`, `check_out_tolerance_minutes`, `target_points` | detail 7 hari per jadwal | performance target day, payroll scheduled work day |
+| `work_schedule_days` | `schedule_id`, `day_of_week`, `day_status`, `is_working_day`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_start`, `check_out_tolerance_minutes`, `target_points` | detail 7 hari per jadwal; `target_points` legacy, tampilan schedule memakai `divisions.daily_point_target` | performance target day, payroll scheduled work day |
 | `employee_schedule_assignments` | `employee_id`, `schedule_id`, `effective_start_date`, `effective_end_date` | histori penugasan jadwal | employee detail, performance, payroll |
 | `employee_hobbies` | `employee_id`, `hobby_name`, `notes` | self-service profil hobi | settings, profile enrichment |
 | `employee_education_histories` | `employee_id`, `institution_name`, `degree`, `major`, `start_year`, `end_year` | self-service riwayat pendidikan | settings, profile enrichment |

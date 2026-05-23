@@ -18,6 +18,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheck,
+  faEye,
   faPaperPlane,
   faPenToSquare,
   faRotateLeft,
@@ -200,7 +201,7 @@ type DecisionState = {
   rowLabel: string;
 };
 
-type ActivityDraftGroup = {
+type ActivityDailyGroup = {
   key: string;
   employeeId: string;
   employeeName: string;
@@ -208,11 +209,106 @@ type ActivityDraftGroup = {
   employeeDivisionName: string;
   workDate: string;
   submittedAt: string;
-  status: "DIAJUKAN" | "DIAJUKAN_ULANG";
+  approvedAt: string;
+  rejectedAt: string;
+  createdAt: string;
+  sortTimestamp: string;
+  status: PerformanceActivityRow["status"];
   ids: string[];
   totalPoints: number;
   activities: PerformanceActivityRow[];
 };
+
+type ActivityDraftGroup = ActivityDailyGroup & {
+  status: "DIAJUKAN" | "DIAJUKAN_ULANG";
+};
+
+function isSubmittedDraftStatus(
+  status: PerformanceActivityRow["status"]
+): status is ActivityDraftGroup["status"] {
+  return status === "DIAJUKAN" || status === "DIAJUKAN_ULANG";
+}
+
+function parseActivityPoints(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestTimestamp(current: string, next: string) {
+  if (!next || next === "-") return current;
+  if (!current || current === "-") return next;
+  return next > current ? next : current;
+}
+
+function resolveActivitySortTimestamp(activity: PerformanceActivityRow) {
+  return [activity.approvedAt, activity.rejectedAt, activity.submittedAt, activity.createdAt]
+    .find((value) => value && value !== "-") ?? "";
+}
+
+function countUniqueActivityJobs(activities: PerformanceActivityRow[]) {
+  return new Set(
+    activities.map((activity) =>
+      resolveActivityJobIdLabel(activity.jobIdSnapshot, null, activity.notes)
+    )
+  ).size;
+}
+
+function createActivityDailyGroups(
+  activities: PerformanceActivityRow[],
+  options: {
+    statuses?: readonly PerformanceActivityRow["status"][];
+    includeStatusInKey?: boolean;
+  } = {}
+) {
+  const allowedStatuses = options.statuses ? new Set(options.statuses) : null;
+  const includeStatusInKey = options.includeStatusInKey ?? true;
+  const groups = new Map<string, ActivityDailyGroup>();
+
+  for (const activity of activities) {
+    if (allowedStatuses && !allowedStatuses.has(activity.status)) continue;
+
+    const keyParts = [activity.employeeId, activity.workDate];
+    if (includeStatusInKey) keyParts.push(activity.status);
+    const key = keyParts.join("-");
+    const existing = groups.get(key);
+    if (existing) {
+      existing.ids.push(activity.id);
+      existing.activities.push(activity);
+      existing.totalPoints += parseActivityPoints(activity.totalPoints);
+      existing.submittedAt = latestTimestamp(existing.submittedAt, activity.submittedAt);
+      existing.approvedAt = latestTimestamp(existing.approvedAt, activity.approvedAt);
+      existing.rejectedAt = latestTimestamp(existing.rejectedAt, activity.rejectedAt);
+      existing.createdAt = latestTimestamp(existing.createdAt, activity.createdAt);
+      existing.sortTimestamp = latestTimestamp(existing.sortTimestamp, resolveActivitySortTimestamp(activity));
+      if (activity.status === "DIAJUKAN_ULANG") existing.status = activity.status;
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      employeeId: activity.employeeId,
+      employeeName: activity.employeeName,
+      employeeCode: activity.employeeCode,
+      employeeDivisionName: activity.employeeDivisionName,
+      workDate: activity.workDate,
+      submittedAt: activity.submittedAt,
+      approvedAt: activity.approvedAt,
+      rejectedAt: activity.rejectedAt,
+      createdAt: activity.createdAt,
+      sortTimestamp: resolveActivitySortTimestamp(activity),
+      status: activity.status,
+      ids: [activity.id],
+      totalPoints: parseActivityPoints(activity.totalPoints),
+      activities: [activity],
+    });
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const dateCompare = b.workDate.localeCompare(a.workDate);
+    if (dateCompare !== 0) return dateCompare;
+    return b.sortTimestamp.localeCompare(a.sortTimestamp);
+  });
+}
 
 const ACTIVITY_STATUS_VARIANT: Record<
   PerformanceActivityRow["status"],
@@ -315,7 +411,7 @@ function EmployeeSearchPicker({
           <div>
             <span className="font-semibold text-teal-800">{selected.fullName}</span>
             <span className="ml-2 text-xs text-teal-600">
-              {selected.employeeCode} · {selected.divisionName} · {selected.employeeGroup}
+              {selected.employeeCode} Â· {selected.divisionName} Â· {selected.employeeGroup}
             </span>
           </div>
           <button
@@ -323,7 +419,7 @@ function EmployeeSearchPicker({
             onClick={() => { onSelect(""); setSearch(""); }}
             className="ml-3 text-teal-400 hover:text-teal-700 text-base leading-none"
           >
-            ✕
+            âœ•
           </button>
         </div>
       </div>
@@ -354,9 +450,9 @@ function EmployeeSearchPicker({
                 className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 text-left"
               >
                 <span className="font-medium text-slate-900 shrink-0">{emp.fullName}</span>
-                <span className="text-slate-400">·</span>
+                <span className="text-slate-400">Â·</span>
                 <span className="text-xs text-slate-500 shrink-0">{emp.employeeCode}</span>
-                <span className="text-slate-400">·</span>
+                <span className="text-slate-400">Â·</span>
                 <span className="text-xs text-slate-500 truncate">{emp.divisionName}</span>
                 <span className="ml-auto text-xs text-slate-400 shrink-0">{emp.employeeGroup}</span>
               </button>
@@ -396,7 +492,7 @@ export default function PerformanceCatalogClient({
   const [decisionNotes, setDecisionNotes] = useState("");
   const [draftQueueSearch, setDraftQueueSearch] = useState("");
   const [draftQueueDivision, setDraftQueueDivision] = useState("");
-  const [draftDetailGroup, setDraftDetailGroup] = useState<ActivityDraftGroup | null>(null);
+  const [draftDetailGroup, setDraftDetailGroup] = useState<ActivityDailyGroup | null>(null);
   const [draftDecision, setDraftDecision] = useState<{
     action: "approve" | "reject";
     group: ActivityDraftGroup;
@@ -459,38 +555,19 @@ export default function PerformanceCatalogClient({
 
   const isOverrideRole = role === "HRD" || role === "SUPER_ADMIN";
 
+  const activityHistoryGroups = useMemo(
+    () => createActivityDailyGroups(activityEntries),
+    [activityEntries]
+  );
+
   const overrideDraftGroups = useMemo(() => {
     if (!isOverrideRole) return [];
-    const pendingActivities = activityEntries.filter(
-      (entry): entry is PerformanceActivityRow & { status: "DIAJUKAN" | "DIAJUKAN_ULANG" } =>
-        entry.status === "DIAJUKAN" || entry.status === "DIAJUKAN_ULANG"
-    );
-    const map = new Map<string, ActivityDraftGroup>();
-    for (const activity of pendingActivities) {
-      const key = `${activity.employeeId}-${activity.workDate}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.ids.push(activity.id);
-        existing.activities.push(activity);
-        existing.totalPoints += Number(activity.totalPoints);
-      } else {
-        map.set(key, {
-          key,
-          employeeId: activity.employeeId,
-          employeeName: activity.employeeName,
-          employeeCode: activity.employeeCode,
-          employeeDivisionName: activity.employeeDivisionName,
-          workDate: activity.workDate,
-          submittedAt: activity.submittedAt,
-          status: activity.status,
-          ids: [activity.id],
-          totalPoints: Number(activity.totalPoints),
-          activities: [activity],
-        });
-      }
-    }
+    const groups = createActivityDailyGroups(activityEntries, {
+      statuses: ["DIAJUKAN", "DIAJUKAN_ULANG"],
+      includeStatusInKey: false,
+    }).filter((group): group is ActivityDraftGroup => isSubmittedDraftStatus(group.status));
     const q = draftQueueSearch.trim().toLowerCase();
-    return Array.from(map.values())
+    return groups
       .filter((group) => {
         if (draftQueueDivision && group.employeeDivisionName !== draftQueueDivision) return false;
         if (!q) return true;
@@ -508,7 +585,7 @@ export default function PerformanceCatalogClient({
     if (!isOverrideRole) return [];
     const seen = new Set<string>();
     for (const entry of activityEntries) {
-      if (entry.status === "DIAJUKAN" || entry.status === "DIAJUKAN_ULANG") {
+      if (isSubmittedDraftStatus(entry.status)) {
         if (entry.employeeDivisionName && entry.employeeDivisionName !== "-") {
           seen.add(entry.employeeDivisionName);
         }
@@ -887,7 +964,7 @@ export default function PerformanceCatalogClient({
     [canManageCatalog]
   );
 
-  const activityColumns: ColumnDef<PerformanceActivityRow>[] = useMemo(
+  const activityColumns: ColumnDef<ActivityDailyGroup>[] = useMemo(
     () => [
       {
         header: "Karyawan",
@@ -903,72 +980,61 @@ export default function PerformanceCatalogClient({
       },
       { header: "Tanggal", accessorKey: "workDate" },
       {
-        header: "Job ID",
-        accessorKey: "jobIdSnapshot",
+        header: "Total Job",
+        id: "jobCount",
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-slate-600">
-            {resolveActivityJobIdLabel(
-              row.original.jobIdSnapshot,
-              null,
-              row.original.notes
-            )}
-          </span>
+          <span className="font-mono text-xs text-slate-600">{countUniqueActivityJobs(row.original.activities)}</span>
         ),
       },
       {
-        header: "Aktivitas",
-        accessorKey: "workNameSnapshot",
+        header: "Total Aktivitas",
+        id: "activityCount",
         cell: ({ row }) => (
           <div className="space-y-0.5">
-            <p className="text-slate-900">{row.original.workNameSnapshot}</p>
-            <p className="text-xs text-slate-500">
-              {row.original.actualDivisionName} · {formatPointNumber(row.original.pointValueSnapshot)} × {row.original.quantity}
-            </p>
+            <p className="text-slate-900">{row.original.activities.length} aktivitas</p>
+            <p className="text-xs text-slate-500">Klik rincian untuk lihat job ID dan jenis pekerjaan</p>
           </div>
         ),
       },
       {
         header: "Total Poin",
         accessorKey: "totalPoints",
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {formatPointNumber(row.original.totalPoints)}
-          </span>
-        ),
+        cell: ({ row }) => <span className="font-medium">{formatPointNumber(row.original.totalPoints)}</span>,
       },
       {
         header: "Status",
         accessorKey: "status",
         cell: ({ row }) => (
-          <span
-            className="inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium"
-            title={ACTIVITY_STATUS_LABEL[row.original.status]}
-          >
-            {row.original.status === "DRAFT" ? (
-              <FontAwesomeIcon icon={faPenToSquare} className="h-3.5 w-3.5" />
-            ) : row.original.status === "DIAJUKAN" || row.original.status === "DIAJUKAN_ULANG" ? (
-              <FontAwesomeIcon icon={faPaperPlane} className="h-3.5 w-3.5" />
-            ) : row.original.status === "DITOLAK_SPV" || row.original.status === "REVISI_TW" ? (
-              <FontAwesomeIcon icon={faRotateLeft} className="h-3.5 w-3.5" />
-            ) : (
-              <FontAwesomeIcon icon={faCheck} className="h-3.5 w-3.5" />
-            )}
-          </span>
+          <Badge variant={ACTIVITY_STATUS_VARIANT[row.original.status]}>
+            {ACTIVITY_STATUS_LABEL[row.original.status]}
+          </Badge>
         ),
       },
       {
         header: "Aksi",
         id: "actions",
         cell: ({ row }) => {
-          const entry = row.original;
-          const isMutable = ["DRAFT", "DITOLAK_SPV", "REVISI_TW"].includes(entry.status);
-          const isApprovable = ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
-          const isDeletable = ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(entry.status);
+          const group = row.original;
+          const entry = group.activities[0] ?? null;
+          const isSingleEntry = group.activities.length === 1 && entry !== null;
+          const isMutable = isSingleEntry && ["DRAFT", "DITOLAK_SPV", "REVISI_TW"].includes(group.status);
+          const isDeletable = isSingleEntry && ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(group.status);
           const canApprove = role === "HRD" || role === "SUPER_ADMIN";
+          const isApprovable = canApprove && isSubmittedDraftStatus(group.status);
 
           return (
             <div className="flex flex-wrap gap-1.5">
-              {canManageActivities && isMutable ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Lihat rincian"
+                aria-label="Lihat rincian"
+                onClick={() => setDraftDetailGroup(group)}
+              >
+                <FontAwesomeIcon icon={faEye} className="h-4 w-4" />
+              </Button>
+              {canManageActivities && isMutable && entry ? (
                 <>
                   <Button
                     type="button"
@@ -1001,7 +1067,7 @@ export default function PerformanceCatalogClient({
                         action: "submit",
                         activityId: entry.id,
                         title: "Ajukan Aktivitas",
-                        rowLabel: `${entry.employeeName} · ${entry.workNameSnapshot}`,
+                        rowLabel: `${entry.employeeName} · ${entry.workDate}`,
                       })
                     }
                   >
@@ -1021,21 +1087,17 @@ export default function PerformanceCatalogClient({
                   ) : null}
                 </>
               ) : null}
-              {canApprove && isApprovable ? (
+              {isApprovable ? (
                 <>
                   <Button
                     type="button"
                     size="icon"
                     title="Setujui HRD"
                     aria-label="Setujui HRD"
-                    onClick={() =>
-                      setDecisionState({
-                        action: "approve",
-                        activityId: entry.id,
-                        title: "Setujui Aktivitas",
-                        rowLabel: `${entry.employeeName} · ${entry.workNameSnapshot}`,
-                      })
-                    }
+                    onClick={() => {
+                      setDraftDecisionNotes("");
+                      setDraftDecision({ action: "approve", group: group as ActivityDraftGroup });
+                    }}
                   >
                     <FontAwesomeIcon icon={faCheck} className="h-4 w-4" />
                   </Button>
@@ -1045,14 +1107,10 @@ export default function PerformanceCatalogClient({
                     size="icon"
                     title="Tolak"
                     aria-label="Tolak"
-                    onClick={() =>
-                      setDecisionState({
-                        action: "reject",
-                        activityId: entry.id,
-                        title: "Tolak Aktivitas",
-                        rowLabel: `${entry.employeeName} · ${entry.workNameSnapshot}`,
-                      })
-                    }
+                    onClick={() => {
+                      setDraftDecisionNotes("");
+                      setDraftDecision({ action: "reject", group: group as ActivityDraftGroup });
+                    }}
                   >
                     <FontAwesomeIcon icon={faXmark} className="h-4 w-4" />
                   </Button>
@@ -1075,7 +1133,7 @@ export default function PerformanceCatalogClient({
           <div className="space-y-0.5">
             <p className="font-medium text-slate-900">{row.original.employeeName}</p>
             <p className="text-xs text-slate-500">
-              {row.original.employeeCode} · {row.original.divisionSnapshotName}
+              {row.original.employeeCode} Â· {row.original.divisionSnapshotName}
             </p>
           </div>
         ),
@@ -1090,7 +1148,7 @@ export default function PerformanceCatalogClient({
         header: "Target",
         id: "target",
         cell: ({ row }) =>
-          `${row.original.targetDailyPoints.toLocaleString("id-ID")} × ${row.original.targetDays} hr = ${row.original.totalTargetPoints.toLocaleString("id-ID")}`,
+          `${row.original.targetDailyPoints.toLocaleString("id-ID")} Ã— ${row.original.targetDays} hr = ${row.original.totalTargetPoints.toLocaleString("id-ID")}`,
       },
       {
         header: "Approved",
@@ -1208,11 +1266,11 @@ export default function PerformanceCatalogClient({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium text-slate-800">
-                    Draft Harian Diajukan — Menunggu Persetujuan HRD
+                    Draft Harian Diajukan â€” Menunggu Persetujuan HRD
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {overrideDraftGroups.length} draft
-                    {draftQueueDivision ? ` · Divisi: ${draftQueueDivision}` : ""}
+                    {draftQueueDivision ? ` Â· Divisi: ${draftQueueDivision}` : ""}
                   </p>
                 </div>
               </div>
@@ -1284,7 +1342,7 @@ export default function PerformanceCatalogClient({
                           >
                             <td className="px-3 py-2.5">
                               <p className="font-medium text-slate-900">{group.employeeName}</p>
-                              <p className="text-xs text-slate-500">{group.employeeCode} · {group.employeeDivisionName}</p>
+                              <p className="text-xs text-slate-500">{group.employeeCode} Â· {group.employeeDivisionName}</p>
                             </td>
                             <td className="px-3 py-2.5 text-slate-700">{group.workDate}</td>
                             <td className="px-3 py-2.5 text-center tabular-nums text-slate-700">{uniqueJobs}</td>
@@ -1330,7 +1388,7 @@ export default function PerformanceCatalogClient({
             </div>
           ) : null}
           <DataTable
-            data={activityEntries}
+            data={activityHistoryGroups}
             columns={activityColumns}
             searchKey="employeeName"
             searchPlaceholder="Cari karyawan..."
@@ -1424,7 +1482,7 @@ export default function PerformanceCatalogClient({
                 <option value="">Pilih karyawan</option>
                 {employeeOptions.map((employee) => (
                   <option key={employee.id} value={employee.id}>
-                    {employee.fullName} ({employee.employeeCode}) · {employee.divisionName}
+                    {employee.fullName} ({employee.employeeCode}) Â· {employee.divisionName}
                   </option>
                 ))}
               </select>
@@ -1523,7 +1581,7 @@ export default function PerformanceCatalogClient({
           {draftDetailGroup ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <p className="flex-shrink-0 text-xs text-slate-500">
-                {draftDetailGroup.employeeCode} · {draftDetailGroup.employeeDivisionName} · Tgl Kerja: {draftDetailGroup.workDate} · Diajukan: {draftDetailGroup.submittedAt}
+                {draftDetailGroup.employeeCode} Â· {draftDetailGroup.employeeDivisionName} Â· Tgl Kerja: {draftDetailGroup.workDate} Â· Diajukan: {draftDetailGroup.submittedAt}
               </p>
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200">
                 <table className="w-full text-sm">
@@ -1570,7 +1628,7 @@ export default function PerformanceCatalogClient({
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
-              {draftDecision?.group.employeeName} · {draftDecision?.group.workDate} · {draftDecision?.group.activities.length} aktivitas
+              {draftDecision?.group.employeeName} Â· {draftDecision?.group.workDate} Â· {draftDecision?.group.activities.length} aktivitas
             </p>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">
@@ -1670,7 +1728,7 @@ export default function PerformanceCatalogClient({
                 <Input
                   value={entryDraft.unitDescription}
                   onChange={(e) => setEntryDraft((d) => ({ ...d, unitDescription: e.target.value }))}
-                  placeholder="pcs, hari, …"
+                  placeholder="pcs, hari, â€¦"
                 />
               </div>
             </div>
@@ -1711,7 +1769,7 @@ export default function PerformanceCatalogClient({
               <p className="font-semibold">Format header yang diperlukan:</p>
               <p className="font-mono">DIVISI | JENIS PEKERJAAN | POIN | KETERANGAN</p>
               <p className="text-slate-500">Kolom KETERANGAN bersifat opsional. Baris dengan data tidak valid akan dilewati.</p>
-              <p className="text-amber-700 font-medium">⚠ Import akan menggantikan semua entry untuk divisi yang ada dalam file.</p>
+              <p className="text-amber-700 font-medium">âš  Import akan menggantikan semua entry untuk divisi yang ada dalam file.</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Pilih File .xlsx</label>

@@ -17,8 +17,9 @@ import { attendanceTickets, employeeReviews, incidentLogs } from "@/lib/db/schem
 import { branches, divisions, grades, positions } from "@/lib/db/schema/master";
 import { payrollPeriods, payrollResults } from "@/lib/db/schema/payroll";
 import { dailyActivityEntries, monthlyPointPerformances } from "@/lib/db/schema/point";
-import { aliasedTable, and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { aliasedTable, and, asc, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { resolvePointTargetForDivision } from "@/config/constants";
+import { countAssignedDaysForPeriod } from "@/server/point-engine/count-assigned-days-for-period";
 import type { UserRole } from "@/types";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -160,12 +161,6 @@ export type MyProfileResult = {
   emptyReason: string | null;
   profileCompletionRequired: boolean;
 };
-
-function isMissingTicketStatusEnumValueError(error: unknown) {
-  const err = error as { message?: string; cause?: { message?: string } };
-  const message = `${err.message ?? ""} ${err.cause?.message ?? ""}`.toLowerCase();
-  return message.includes("invalid input value for enum") && message.includes("ticket_status");
-}
 
 const PAYROLL_SUMMARY_ROLES: UserRole[] = [
   "HRD",
@@ -324,6 +319,69 @@ function dKey(d: Date): string {
   return `${d.getUTCFullYear()}-${m}-${dy}`;
 }
 
+async function resolveEmployeeDailyPointTarget(employeeId: string, periodStartDate: Date) {
+  const divisionAlias = aliasedTable(divisions, "dashboard_target_division");
+  const [historyRow] = await db
+    .select({
+      divisionName: divisionAlias.name,
+      dailyPointTarget: divisionAlias.dailyPointTarget,
+    })
+    .from(employeeDivisionHistories)
+    .leftJoin(divisionAlias, eq(employeeDivisionHistories.newDivisionId, divisionAlias.id))
+    .where(
+      and(
+        eq(employeeDivisionHistories.employeeId, employeeId),
+        lte(employeeDivisionHistories.effectiveDate, periodStartDate)
+      )
+    )
+    .orderBy(desc(employeeDivisionHistories.effectiveDate), desc(employeeDivisionHistories.createdAt))
+    .limit(1);
+
+  if (historyRow) {
+    return historyRow.dailyPointTarget ?? resolvePointTargetForDivision(historyRow.divisionName);
+  }
+
+  const [employeeRow] = await db
+    .select({
+      divisionName: divisions.name,
+      dailyPointTarget: divisions.dailyPointTarget,
+    })
+    .from(employees)
+    .leftJoin(divisions, eq(employees.divisionId, divisions.id))
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+
+  return employeeRow?.dailyPointTarget ?? resolvePointTargetForDivision(employeeRow?.divisionName);
+}
+
+async function resolveScheduledTargetDays(employeeId: string, periodStartDate: Date, periodEndDate: Date) {
+  const assignmentRows = await db
+    .select({
+      effectiveStartDate: employeeScheduleAssignments.effectiveStartDate,
+      effectiveEndDate: employeeScheduleAssignments.effectiveEndDate,
+    })
+    .from(employeeScheduleAssignments)
+    .where(
+      and(
+        eq(employeeScheduleAssignments.employeeId, employeeId),
+        lte(employeeScheduleAssignments.effectiveStartDate, periodEndDate),
+        or(
+          isNull(employeeScheduleAssignments.effectiveEndDate),
+          gte(employeeScheduleAssignments.effectiveEndDate, periodStartDate)
+        )
+      )
+    )
+    .orderBy(asc(employeeScheduleAssignments.effectiveStartDate));
+
+  if (assignmentRows.length === 0) return 0;
+
+  return countAssignedDaysForPeriod({
+    periodStartDate,
+    periodEndDate,
+    assignments: assignmentRows,
+  });
+}
+
 export async function getLatestPerformance(employeeId: string): Promise<MyPerformanceSummary> {
   // Periode berjalan: tgl 26 bulan lalu s/d tgl 25 bulan ini (Jakarta time)
   const { periodStart, periodEnd } = getCurrentPayrollPeriodUTC();
@@ -338,7 +396,7 @@ export async function getLatestPerformance(employeeId: string): Promise<MyPerfor
 
   const APPROVED_STATUSES = ["DISETUJUI_SPV", "OVERRIDE_HRD", "DIKUNCI_PAYROLL"] as const;
 
-  const [entries, empRows, leaveRows] = await Promise.all([
+  const [entries, targetDailyPoints, targetDays] = await Promise.all([
     db
       .select({
         workDate: dailyActivityEntries.workDate,
@@ -354,43 +412,9 @@ export async function getLatestPerformance(employeeId: string): Promise<MyPerfor
           inArray(dailyActivityEntries.status, [...APPROVED_STATUSES])
         )
       ),
-    db
-      .select({ divisionName: divisions.name })
-      .from(employees)
-      .leftJoin(divisions, eq(employees.divisionId, divisions.id))
-      .where(eq(employees.id, employeeId))
-      .limit(1),
-    (async () => {
-      try {
-        return await db
-          .select({ daysCount: attendanceTickets.daysCount })
-          .from(attendanceTickets)
-          .where(
-            and(
-              eq(attendanceTickets.employeeId, employeeId),
-              lte(attendanceTickets.startDate, periodEnd),
-              gte(attendanceTickets.endDate, periodStart),
-              inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"])
-            )
-          );
-      } catch (error) {
-        if (!isMissingTicketStatusEnumValueError(error)) throw error;
-        return db
-          .select({ daysCount: attendanceTickets.daysCount })
-          .from(attendanceTickets)
-          .where(
-            and(
-              eq(attendanceTickets.employeeId, employeeId),
-              lte(attendanceTickets.startDate, periodEnd),
-              gte(attendanceTickets.endDate, periodStart),
-              inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "LOCKED"])
-            )
-          );
-      }
-    })(),
+    resolveEmployeeDailyPointTarget(employeeId, periodStart),
+    resolveScheduledTargetDays(employeeId, periodStart, periodEnd),
   ]);
-
-  const targetDailyPoints = resolvePointTargetForDivision(empRows[0]?.divisionName);
 
   // Map: dateKey -> total approved points that day
   const approvedByDate = new Map<string, number>();
@@ -415,16 +439,8 @@ export async function getLatestPerformance(employeeId: string): Promise<MyPerfor
   }
   const performancePercent = dayCount > 0 ? (dayPercentSum / dayCount).toFixed(2) : "0.00";
 
-  // Target poin bulanan (efektif = hari kerja Senin–Sabtu dikurangi izin approved)
-  let workingDays = 0;
-  const cur = new Date(periodStart);
-  while (cur <= periodEnd) {
-    if (cur.getUTCDay() !== 0) workingDays++;
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-  const leaveDays = leaveRows.reduce((sum, r) => sum + r.daysCount, 0);
-  const effectiveTargetDays = Math.max(0, workingDays - leaveDays);
-  const totalTargetPoints = targetDailyPoints * effectiveTargetDays;
+  // Target poin bulanan mengikuti master divisi dikali hari aktif/non-OFF pada scheduler.
+  const totalTargetPoints = targetDailyPoints * targetDays;
 
   const progressPercent = totalTargetPoints > 0
     ? ((totalApprovedPoints / totalTargetPoints) * 100).toFixed(2)
@@ -481,41 +497,45 @@ async function getLatestMonthlyPerformance(employeeId: string): Promise<MyPerfor
   // Periode berjalan: UTC dates (sama format dengan resolvePayrollPeriod), Jakarta timezone
   const { periodStart, periodEnd } = getCurrentPayrollPeriodUTC();
 
-  const rows = await db
-    .select({
-      periodStartDate: monthlyPointPerformances.periodStartDate,
-      periodEndDate: monthlyPointPerformances.periodEndDate,
-      performancePercent: monthlyPointPerformances.performancePercent,
-      totalApprovedPoints: monthlyPointPerformances.totalApprovedPoints,
-      totalTargetPoints: monthlyPointPerformances.totalTargetPoints,
-      status: monthlyPointPerformances.status,
-    })
-    .from(monthlyPointPerformances)
-    .where(
-      and(
-        eq(monthlyPointPerformances.employeeId, employeeId),
-        eq(monthlyPointPerformances.periodStartDate, periodStart),
-        eq(monthlyPointPerformances.periodEndDate, periodEnd)
+  const [rows, targetDailyPoints, targetDays] = await Promise.all([
+    db
+      .select({
+        periodStartDate: monthlyPointPerformances.periodStartDate,
+        periodEndDate: monthlyPointPerformances.periodEndDate,
+        totalApprovedPoints: monthlyPointPerformances.totalApprovedPoints,
+        status: monthlyPointPerformances.status,
+      })
+      .from(monthlyPointPerformances)
+      .where(
+        and(
+          eq(monthlyPointPerformances.employeeId, employeeId),
+          eq(monthlyPointPerformances.periodStartDate, periodStart),
+          eq(monthlyPointPerformances.periodEndDate, periodEnd)
+        )
       )
-    )
-    .limit(1);
+      .limit(1),
+    resolveEmployeeDailyPointTarget(employeeId, periodStart),
+    resolveScheduledTargetDays(employeeId, periodStart, periodEnd),
+  ]);
 
   const row = rows[0];
   if (!row) return null;
 
-  const pct = String(row.performancePercent ?? "0");
   const approvedPoints = String(row.totalApprovedPoints ?? "0");
-  const targetPoints = Number(row.totalTargetPoints ?? 0);
+  const totalTargetPoints = targetDailyPoints * targetDays;
+  const progressPercent = totalTargetPoints > 0
+    ? ((Number(approvedPoints) / totalTargetPoints) * 100).toFixed(2)
+    : "0.00";
 
   return {
     periodStartDate: row.periodStartDate,
     periodEndDate: row.periodEndDate,
-    performancePercent: Number(pct).toFixed(2),
-    weeklyPercent: Number(pct).toFixed(1),
-    dailyPercent: Number(pct).toFixed(1),
+    performancePercent: progressPercent,
+    weeklyPercent: progressPercent,
+    dailyPercent: progressPercent,
     totalApprovedPoints: Number(approvedPoints).toFixed(2),
-    totalTargetPoints: targetPoints,
-    progressPercent: Number(pct).toFixed(2),
+    totalTargetPoints,
+    progressPercent,
     status: row.status,
   };
 }

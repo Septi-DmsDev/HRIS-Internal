@@ -7,6 +7,14 @@ import { workScheduleSchema, workShiftMasterSchema, type WorkScheduleInput } fro
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+function revalidateWorkScheduleTargetPaths() {
+  revalidatePath("/master");
+  revalidatePath("/scheduler");
+  revalidatePath("/schedule");
+  revalidatePath("/dashboard");
+  revalidatePath("/performance");
+}
+
 function normalizeWorkScheduleInput(input: WorkScheduleInput) {
   return {
     code: input.code,
@@ -82,7 +90,7 @@ export async function createWorkShiftMaster(input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   return { success: true };
 }
 
@@ -128,7 +136,7 @@ export async function updateWorkShiftMaster(id: string, input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   return { success: true };
 }
 
@@ -137,7 +145,7 @@ export async function deleteWorkShiftMaster(id: string) {
   if (authError) return authError;
 
   await db.delete(workShiftMasters).where(eq(workShiftMasters.id, id));
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   return { success: true };
 }
 
@@ -188,7 +196,7 @@ export async function createWorkSchedule(input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   revalidatePath("/employees");
   return { success: true };
 }
@@ -251,7 +259,7 @@ export async function updateWorkSchedule(id: string, input: unknown) {
     throw error;
   }
 
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   revalidatePath("/employees");
   return { success: true };
 }
@@ -270,7 +278,7 @@ export async function deleteWorkSchedule(id: string) {
     throw error;
   }
 
-  revalidatePath("/master");
+  revalidateWorkScheduleTargetPaths();
   revalidatePath("/employees");
   return { success: true };
 }

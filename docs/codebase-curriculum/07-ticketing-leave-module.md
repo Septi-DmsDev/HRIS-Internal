@@ -30,7 +30,8 @@ Modul ini mengelola pengajuan dan approval:
 - emergency;
 - setengah hari.
 
-Modul ini penting karena status tiket memengaruhi payroll dan target performa.
+Modul ini penting karena status tiket memengaruhi payroll, target performa, dan assignment jadwal.
+Untuk jadwal, efek OFF hanya ditulis setelah approval final HRD/SUPER_ADMIN atau status final yang setara; review SPV/KABAG saja tidak mengubah jadwal.
 
 ## 2. Alur Kerja Modul
 
@@ -68,6 +69,8 @@ Approve ticket
 -> konsumsi leave quota sesuai jenis tiket
 -> update attendance_tickets dengan status final dan payrollImpact
 -> tulis attendance_ticket_audit_logs
+-> untuk tiket harian penuh, kosongkan employee_schedule_assignments pada rentang ticket agar /scheduler menjadi OFF
+-> revalidate /schedule dan /scheduler setelah approval final atau reject agar tampilan jadwal ikut sinkron
 ```
 
 ## 3. Penjelasan File
@@ -105,6 +108,7 @@ Logika penting:
 - `createTicket()` menolak akun self-service yang belum terhubung ke employee.
 - `createTicket()` mewajibkan lampiran untuk sakit lebih dari 1 hari.
 - `approveTicket()` memakai transaction untuk final approval HRD/SUPER_ADMIN dan consume quota.
+- `approveTicket()` untuk tiket harian penuh yang final approved juga memanggil schedule assignment service untuk membuat rentang ticket menjadi OFF di scheduler.
 - `approveTicket()` untuk SPV/KABAG hanya memindahkan tiket TEAMWORK ke queue HRD sebagai `APPROVED_SPV`; keputusan final payroll impact tetap di HRD/SUPER_ADMIN.
 - `approveTicket()` dan `rejectTicket()` menulis `attendance_ticket_audit_logs` bila enum audit tersedia.
 - `approveTicket()` memakai `resolveLeaveQuotaEligibility()` untuk quarter rule.
@@ -128,6 +132,8 @@ Helper ini menghitung kapan karyawan eligible quota berdasarkan tanggal masuk + 
 - Approver action: `SUPER_ADMIN`, `HRD`, `SPV`, `KABAG`.
 - SPV/KABAG hanya boleh memproses tiket TEAMWORK dalam division scope dan tidak boleh memproses tiket sendiri; hasilnya `APPROVED_SPV` untuk queue HRD.
 - HRD/SUPER_ADMIN melakukan final approval menjadi `APPROVED_HRD` dan menentukan payroll impact.
+- OFF pada `/schedule` mengikuti `employee_schedule_assignments` yang sudah diubah oleh approval final; `/schedule` tidak memakai `APPROVED_SPV` sebagai sumber OFF.
+- `IZIN_JAM`, `SETENGAH_HARI`, dan `RESIGN` tidak otomatis mengosongkan jadwal menjadi OFF penuh.
 - Self-service employee-linked memakai `user_roles.employee_id`.
 - Eligible leave quota memakai quarter rule.
 - Payroll impact quota mengikuti jenis tiket:
@@ -175,4 +181,6 @@ TEAMWORK buka /tickets
 -> approveTicket() cek quarter eligibility dan quota
 -> payrollImpact tersimpan
 -> payroll membaca ticket approved dalam periode aktif
+-> approval final mengubah assignment jadwal di /scheduler menjadi OFF untuk tanggal ticket harian penuh
+-> /schedule karyawan membaca jadwal OFF dari assignment scheduler tersebut
 ```

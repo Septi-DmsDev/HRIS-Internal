@@ -10,6 +10,7 @@ File ditemukan:
 - `src/server/actions/point-catalog.ts`
 - `src/server/actions/performance.ts`
 - `src/server/point-engine/parse-master-point-workbook.ts`
+- `src/server/point-engine/count-assigned-days-for-period.ts`
 - `src/server/point-engine/count-target-days-for-period.ts`
 - `src/server/point-engine/calculate-monthly-point-performance.ts`
 - `src/server/services/point-catalog-service.ts`
@@ -44,10 +45,11 @@ Modul ini mengelola:
 | File/Folder | Fungsi | Dipakai Oleh | Catatan |
 |---|---|---|---|
 | `src/lib/db/schema/point.ts` | schema katalog poin dan transaksi | performance, dashboard, payroll, training | inti data modul |
-| `src/config/constants.ts` | target default dan override OFFSET | point engine, payroll | rule target harian |
+| `src/config/constants.ts` | target default dan fallback OFFSET legacy | point engine, payroll | fallback rule target harian |
 | `src/server/services/point-catalog-service.ts` | helper versi aktif dan entry/rule per versi | action performance | query reusable |
 | `src/server/point-engine/parse-master-point-workbook.ts` | parser workbook Excel ke entry katalog | import katalog | membaca sheet `MASTER_BERSIH` atau sheet pertama |
-| `src/server/point-engine/count-target-days-for-period.ts` | hitung hari target berdasar assignment jadwal | generate monthly, payroll preview | pure function |
+| `src/server/point-engine/count-assigned-days-for-period.ts` | hitung hari target live dari tanggal yang punya assignment scheduler | dashboard poin dan monthly performance | pure function |
+| `src/server/point-engine/count-target-days-for-period.ts` | hitung hari kerja berdasarkan template schedule | payroll preview | pure function |
 | `src/server/point-engine/calculate-monthly-point-performance.ts` | hitung target, approved point, performance % | generate monthly | pure function |
 | `src/server/actions/point-catalog.ts` | overview katalog dan import workbook | UI katalog | HRD/SUPER_ADMIN |
 | `src/server/actions/performance.ts` | workspace performance dan workflow aktivitas | UI aktivitas | HRD/SUPER_ADMIN/SPV |
@@ -98,7 +100,8 @@ HRD generate monthly performance
 → ambil employee TEAMWORK aktif
 → hitung total approved point dalam periode
 → resolve divisi snapshot dari history
-→ hitung target days dari jadwal kerja
+→ hitung target days dari hari aktif/non-OFF scheduler
+→ hitung total target = target harian master divisi x target days
 → hitung performancePercent
 → replace monthly_point_performances periode itu
 ```
@@ -126,7 +129,7 @@ Logika penting:
 
 - overview memilih versi aktif, jika tidak ada jatuh ke versi terbaru.
 - import bisa mengarsipkan versi aktif lama bila `activateVersion = true`.
-- target divisi dihitung dari rule default + override.
+- target divisi untuk schedule dan monthly performance membaca `divisions.dailyPointTarget` dari master divisi; resolver constant hanya menjadi fallback legacy.
 
 Risiko/catatan:
 
@@ -164,13 +167,15 @@ Logika penting:
 - generate monthly menghapus hasil periode lama lalu menulis ulang seluruh employee TEAMWORK aktif.
 - tersedia input massal persentase managerial bulanan untuk KABAG/SPV/MANAGERIAL oleh HRD/SUPER_ADMIN.
 
+### `src/server/point-engine/count-assigned-days-for-period.ts`
+
+Fungsi utama:
+menghitung hari aktif/non-OFF dari histori assignment scheduler. Tanggal tanpa row `employee_schedule_assignments` dianggap OFF dan tidak masuk target bulanan live.
+
 ### `src/server/point-engine/count-target-days-for-period.ts`
 
 Fungsi utama:
-menghitung jumlah hari target berdasarkan histori assignment jadwal.
-
-Catatan:
-fungsi ini hanya melihat `isWorkingDay`, belum mengurangi hari karena ticket approved atau status khusus lain.
+menghitung hari kerja berdasarkan histori assignment jadwal dan hari kerja aktif di template schedule. Saat ini dipertahankan untuk jalur payroll preview yang masih membutuhkan interpretasi template kerja.
 
 ### `src/server/point-engine/calculate-monthly-point-performance.ts`
 
@@ -185,7 +190,8 @@ menghasilkan:
 
 Logika penting:
 
-- target harian mengambil resolver divisi snapshot,
+- target harian mengambil `divisions.dailyPointTarget` dari divisi snapshot, dengan resolver constant sebagai fallback,
+- `targetDays` diambil dari jumlah hari aktif/non-OFF pada scheduler,
 - jika target total nol, persentase menjadi nol.
 
 ## 5. Business Rules yang Diterapkan
@@ -193,7 +199,8 @@ Logika penting:
 - katalog poin wajib versioning.
 - transaksi aktivitas menyimpan snapshot poin/master.
 - target default harian `13.000`.
-- target override untuk divisi `OFFSET` adalah `39.000`.
+- target harian resmi di UI schedule, dashboard poin, dan monthly performance mengikuti setting master divisi (`divisions.dailyPointTarget`); migrasi backfill menyetel `OFFSET` ke `39.000`.
+- target bulanan = target harian master divisi x jumlah hari aktif/non-OFF pada scheduler.
 - generate monthly memakai divisi snapshot per awal periode, bukan divisi aktual harian.
 - hanya status `DISETUJUI_SPV`, `OVERRIDE_HRD`, `DIKUNCI_PAYROLL` yang dihitung ke monthly performance.
 - SPV/KABAG hanya boleh approve/reject aktivitas divisinya.
@@ -212,7 +219,7 @@ Logika penting:
 | `employees` | ya | tidak | opsi karyawan dan scope |
 | `employee_division_histories` | ya | tidak | resolve snapshot divisi |
 | `employee_schedule_assignments` | ya | tidak | resolve target days |
-| `work_schedule_days` | ya | tidak | working day per schedule |
+| `work_schedule_days` | ya | tidak | jam dan label shift per schedule; target poin bulanan memakai assignment aktif/non-OFF |
 | `divisions` | ya | tidak | label divisi dan validasi kecocokan katalog |
 
 ## 7. Edge Case
@@ -222,14 +229,13 @@ Logika penting:
 - draft TW yang belum dikirim akan pulih setelah refresh/pindah menu selama browser tab/session yang sama masih menyimpan `sessionStorage`.
 - activity yang sudah diajukan/disetujui tidak bisa diedit.
 - hanya activity `DRAFT` yang boleh dihapus.
-- jika employee tidak punya jadwal di periode itu, target days menjadi `0`.
+- jika employee tidak punya assignment scheduler di periode itu, target days menjadi `0`.
 
 ## 8. Hal yang Perlu Diperhatikan Developer
 
 - rule deadline H+1 dan H+2 ada di dokumen bisnis, tetapi belum ada enforcement di code.
 - self-service TW sudah tersedia lewat helper personal dan route dashboard/team performance; tetap cek action yang dipakai jika mengubah flow input harian.
-- generate monthly saat ini belum mengurangi target karena ticket approved; ia hanya membaca working day schedule.
-  Artinya integrasi penuh rule "approved leave tidak masuk target" belum terlihat di generator ini.
+- generate monthly tidak mengurangi ticket approved secara terpisah; approved full-day leave harus sudah mengubah scheduler menjadi OFF sehingga tidak masuk `targetDays`.
 
 ## 9. Contoh Alur Nyata
 
@@ -241,7 +247,7 @@ HRD sinkronkan workbook
 → activity diajukan
 → SPV setujui
 → HRD generate monthly untuk periode tertentu
-→ sistem hitung target days dari jadwal
+→ sistem hitung target days dari hari aktif/non-OFF scheduler
 → sistem resolve target poin dari divisi snapshot
 → monthly_point_performances terbentuk
 → hasil dipakai training, dashboard, dan payroll TEAMWORK

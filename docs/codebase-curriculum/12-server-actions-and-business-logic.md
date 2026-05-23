@@ -55,7 +55,8 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 | `updateMyAccountSettings` | update email/password/metadata dan employee profile ringan |
 | `getMySchedule` | jadwal pribadi |
 | `getTeamSchedules` | jadwal tim sesuai scope |
-| `assignEmployeeSchedule` | assignment schedule, perlu role/scope check |
+| `assignEmployeeSchedule` | assignment schedule, perlu role/scope check; cell scheduler juga bisa mengosongkan tanggal jadi OFF |
+| target poin bulanan | dihitung dari target harian master divisi x jumlah tanggal aktif/non-OFF pada scheduler |
 
 ### Master Data
 
@@ -97,6 +98,7 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 
 Rule engine terkait:
 
+- `countAssignedDaysForPeriod()`
 - `countTargetDaysForPeriod()`
 - `calculateMonthlyPointPerformance()`
 - `parseMasterPointWorkbook()`

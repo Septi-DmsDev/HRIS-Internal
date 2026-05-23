@@ -71,6 +71,8 @@ Logika penting:
 
 - `divisions.code`, `positions.code`, `grades.code` harus unik.
 - `divisions.trainingPassPercent` default `80`.
+- `divisions.dailyPointTarget` menjadi sumber target poin harian yang ditampilkan di `/schedule`, dashboard poin, dan dipakai generator performa bulanan.
+- Target poin bulanan dihitung dari `divisions.dailyPointTarget` dikali jumlah tanggal aktif/non-OFF di scheduler.
 - `positions.employeeGroup` memaksa jabatan dikaitkan ke `MANAGERIAL` atau `TEAMWORK`.
 - `workShiftMasters` menyimpan toleransi check-in/break/check-out untuk absensi.
 - `employee-group-configs` menjadi pengaturan tambahan untuk label/aturan kelompok karyawan, bukan pengganti enum group inti.
@@ -164,6 +166,7 @@ Logika penting:
 - jam pulang harus lebih besar daripada jam masuk.
 - jadwal yang masih dipakai karyawan tidak boleh dihapus.
 - divisi menyimpan `trainingPassPercent` yang akan dipakai training evaluation.
+- divisi menyimpan `dailyPointTarget`; jadwal harian tim menentukan tanggal aktif/non-OFF dan jam shift, sedangkan nominal target harian mengikuti setting master divisi.
 - shift master dipakai absensi manual dan fallback attendance.
 
 ## 6. Data yang Dibaca dan Ditulis

@@ -225,7 +225,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                 <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold ${TICKET_TYPE_COLORS[todayDay.ticketOverride] ?? "bg-slate-100 text-slate-600"}`}>
                   {TICKET_TYPE_LABELS[todayDay.ticketOverride] ?? todayDay.ticketOverride}
                 </span>
-              ) : todayDay.dayStatus === "KERJA" ? (
+              ) : todayDay.isWorkingDay ? (
                 <div className="space-y-1">
                   {todayDay.startTime && todayDay.endTime && (
                     <p className="text-2xl font-extrabold text-red-900 tracking-tight">
@@ -327,8 +327,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
               <h1 className="text-lg font-bold text-slate-900">Jadwal Bulan Ini</h1>
             </div>
             <p className="text-sm text-slate-500">
-              {result.employeeName} · <span className="font-semibold text-slate-700">{result.scheduleName}</span>{" "}
-              <span className="text-xs text-slate-400 font-mono">({result.scheduleCode})</span>
+              {result.employeeName}
             </p>
           </div>
 
@@ -403,13 +402,13 @@ export default async function SchedulePage({ searchParams }: PageProps) {
                     </span>
                   )}
 
-                  {day.dayStatus === "KERJA" && !day.ticketOverride && day.startTime && day.endTime && (
+                  {day.isWorkingDay && !day.ticketOverride && day.startTime && day.endTime && (
                     <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">
                       {day.startTime}-{day.endTime}
                     </span>
                   )}
 
-                  {day.isWorkingDay && day.targetPoints > 0 && !day.ticketOverride && day.dayStatus === "KERJA" && (
+                  {day.isWorkingDay && day.targetPoints > 0 && !day.ticketOverride && (
                     <span className="block text-[10px] text-teal-500 font-semibold mt-1">
                       {day.targetPoints}p
                     </span>
