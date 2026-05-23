@@ -28,7 +28,7 @@ User buka /reviews
 → getReviews()
 → requireAuth()
 → role menentukan apakah data boleh dibaca
-→ jika SPV, data dibatasi divisinya
+→ jika SPV/KABAG, data dibatasi `divisionIds`
 → page ambil opsi employee
 → client menampilkan tab Review dan Incident
 ```
@@ -38,7 +38,7 @@ Create review
 → createReview()
 → checkRole(["SUPER_ADMIN","HRD","KABAG","SPV"])
 → validasi input
-→ jika SPV, cek employee ada di scope divisi
+→ jika SPV/KABAG, cek employee ada di scope divisi
 → hitung total score dan category
 → insert employee_reviews status SUBMITTED
 → HRD/SUPER_ADMIN bisa validateReview()
@@ -71,7 +71,7 @@ Logika penting:
   - `>= 70` Cukup
   - `>= 60` Kurang
   - lainnya Buruk
-- `reviewerEmployeeId` sengaja diisi `null` karena repo belum punya mapping aman dari auth user ke employee.
+- `reviewerEmployeeId` diisi dari `user_roles.employee_id` bila akun reviewer terhubung ke employee.
 - incident bisa mencatat `payrollDeduction`.
 - `getReviews()` hanya menampilkan incident aktif.
 - `deleteIncident()` melakukan soft-delete dengan `isActive=false`, bukan hard delete.
@@ -113,7 +113,7 @@ Logika penting:
 
 ## 7. Edge Case
 
-- SPV tanpa `divisionId` tidak bisa membuat review scoped.
+- SPV/KABAG tanpa `divisionIds` tidak bisa membuat review scoped.
 - review hanya bisa divalidasi saat status `SUBMITTED`.
 - `payrollDeduction` pada incident bersifat opsional.
 - hapus incident bersifat soft-delete agar row historis tidak langsung hilang dari database.
@@ -122,7 +122,7 @@ Logika penting:
 
 - belum ada audit log terpisah untuk validate review.
 - bila nanti review memengaruhi payroll lebih jauh, sebaiknya formula dipindah ke `src/server/review-engine`.
-- reviewer employee belum tercatat karena mapping auth ke employee belum ada.
+- reviewer employee tercatat bila akun reviewer memiliki `user_roles.employee_id`.
 
 ## 9. Contoh Alur Nyata
 

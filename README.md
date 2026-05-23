@@ -9,10 +9,10 @@ Internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Supabase 
 - TEAMWORK performance point catalog, daily activities, approval workflow, and monthly performance.
 - Input persentase performa bulanan managerial (KABAG/SPV/MANAGERIAL) dari menu `/performance` oleh HRD/SUPER_ADMIN.
 - Manual attendance input on `/absensi` for payroll fulltime/discipline eligibility.
-- ADMS/fingerprint attendance ingest API on `/api/integrations/adms/attendance` (server-to-server).
-- Ticketing for leave/sick/permission and leave quota handling.
+- ADMS/fingerprint ingest APIs on `/api/integrations/adms/attendance`, `/api/integrations/adms/taps`, and `/api/integrations/adms/employees` (server-to-server).
+- Ticketing for leave/sick/permission, SPV/KABAG scoped review queue, HRD/SUPER_ADMIN final approval, and leave quota handling.
 - Employee review, incident log, and training evaluation.
-- Payroll period 26-25, snapshots, preview, finalization, paid/locked lifecycle, adjustments, payslip PDF, XLSX export, and finance summary.
+- Payroll period 26-25, snapshots, preview, finalization, paid/locked lifecycle, structured adjustments, overtime, payslip PDF, XLSX export, and finance summary.
 - Personal self-service pages for linked employee accounts.
 
 ## Tech Stack

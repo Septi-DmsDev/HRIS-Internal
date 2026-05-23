@@ -2,7 +2,7 @@
 
 ## Status
 
-`status: tersedia, tetapi belum lengkap`
+`status: tersedia, usable, masih perlu hardening kebijakan status`
 
 File ditemukan:
 
@@ -14,7 +14,7 @@ File ditemukan:
 Gap yang perlu dibangun:
 
 - enforcement minimal 1 bulan dan maksimal 3 bulan,
-- status reguler efektif mulai periode payroll berikutnya,
+- keputusan status reguler masih langsung mengubah employee status, sementara payroll hanya memprorate dampak periode tengah,
 - audit keputusan training.
 
 ## 1. Tujuan Modul
@@ -79,6 +79,7 @@ Logika penting:
   `employeeGroup = TEAMWORK`, `employmentStatus = TRAINING`, `isActive = true`
 - `avgPerformancePercent` dihitung dari semua monthly performance trainee,
 - `trainingMonths` dihitung kasar dari selisih `Date.now()` dan `startDate`,
+- payroll memakai `training_graduation_date` untuk menentukan tunjangan masa kerja serta prorate bonus fulltime/disiplin bila lulus di tengah periode.
 - kategori:
   - `LULUS` bila rata-rata >= pass percent divisi
   - `MENDEKATI` bila >= 80% dari pass percent
@@ -119,7 +120,7 @@ Logika penting:
 ## 8. Hal yang Perlu Diperhatikan Developer
 
 - code sekarang langsung mengubah status karyawan saat tombol keputusan ditekan.
-- ini tidak sepenuhnya sejalan dengan rule dokumen yang meminta status reguler efektif di periode payroll berikutnya.
+- payroll sudah memprorate bonus fulltime/disiplin dan selisih gaji jika lulus di tengah periode, tetapi rule bisnis untuk status reguler efektif di periode berikutnya masih perlu keputusan final.
 - rule minimal 1 bulan dan maksimal 3 bulan training juga belum ada di action.
 
 ## 9. Contoh Alur Nyata

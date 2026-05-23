@@ -4,7 +4,7 @@ Use this file as the root instruction for Codex or any coding agent working in t
 
 ## Project Identity
 
-This is an internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Drizzle ORM, Supabase Auth, and PostgreSQL. The codebase currently covers employee profiling, placement/mutation helpers, master data, role access, performance points, manual attendance, employee review, ticketing for leave/sick/permission, ticket approval queue, training evaluation, payroll lifecycle, finance summary, and exports (employee/payroll XLSX + payslip PDF).
+This is an internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Drizzle ORM, Supabase Auth, and PostgreSQL. The codebase currently covers employee profiling, placement/mutation helpers, master data, role access, performance points, manual and ADMS/fingerprint attendance, employee review, ticketing for leave/sick/permission, ticket approval queue, training evaluation, overtime, payroll lifecycle, finance summary, and exports (employee/payroll XLSX + payslip PDF).
 
 ## Required Reading
 
@@ -84,11 +84,13 @@ Primary boundaries:
 - SPV/KABAG queue helpers and personal TW performance helpers in `src/server/actions/performance.ts`
 - Ticketing: `/tickets`
 - Ticket approval queue: `/ticketingapproval`
-- Manual attendance: `/absensi`
+- Manual and ADMS/fingerprint attendance: `/absensi`, `/api/integrations/adms/attendance`, `/api/integrations/adms/taps`, `/api/integrations/adms/employees`
+- Overtime request and approval: `/overtime`
 - Review and incident: `/reviews`
+- History audit: `/history`
 - Scheduling views: `/schedule`, `/scheduler`
 - Employee placement/mutation: `/positioning` (`/divisi` redirects here)
-- Payroll and finance: `/payroll`, `/payroll/[periodId]/[employeeId]`, PDF payslip, XLSX export, `/finance`
+- Payroll and finance: `/payroll`, `/payroll/[periodId]/[employeeId]`, PDF payslip, bulk slips PDF, XLSX export/rekap, `/finance`
 
 ## Preferred Implementation Flow
 
@@ -121,8 +123,8 @@ pnpm build
 - RLS policies are not represented clearly in repo migrations; server-side checks are the current visible guard.
 - Deadline enforcement for TW input H+1 and SPV approval H+2 is not complete everywhere.
 - Training graduation currently changes status directly in the action; the business rule says regular status should be effective next payroll period.
-- Some payroll components are modeled but still need hardening from `next-update.md`.
-- Audit coverage is strongest in payroll and performance activity logs; other modules may need more audit tables/logs.
+- Some payroll/master-data items are complete or partial in `next-update.md`; read the latest checkbox notes before starting hardening.
+- Audit coverage is strongest in payroll, performance activity logs, and ticket approval logs; other modules may still need audit hardening.
 
 ## Response Format
 

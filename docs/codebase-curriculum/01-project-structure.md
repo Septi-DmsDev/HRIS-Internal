@@ -24,7 +24,7 @@ Repo ini mengikuti pola Next.js App Router dengan pemisahan jelas antara:
 | `docs/` | kurikulum codebase, onboarding, arsip specs/plans | `docs/superpowers/*` bersifat historis |
 | `src/` | seluruh source code aplikasi | pusat codebase |
 | `supabase/migrations/` | migration SQL hasil Drizzle/Supabase | policy RLS perlu verifikasi |
-| `scripts/seed-admin.ts` | seed user admin awal | bootstrap role pertama |
+| `scripts/adms_server/*` | helper server contoh untuk integrasi ADMS/fingerprint | batch ingest / mapping |
 | `components.json` | config shadcn/ui | base color `slate`, css variables aktif |
 | `package.json` | dependency dan script | script resmi `dev`, `build`, `start`, `lint` |
 | `drizzle.config.ts` | config Drizzle Kit | schema di `src/lib/db/schema` |
@@ -88,7 +88,9 @@ Route handler aktif:
 | `src/app/(dashboard)/payroll/[periodId]/slips.pdf/route.ts` | export bulk slips PDF |
 | `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | payslip PDF |
 | `src/app/(dashboard)/employees/export.xlsx/route.ts` | export data karyawan XLSX |
-| `src/app/api/integrations/adms/attendance/route.ts` | ingest sinkronisasi absensi dari mesin ADMS/fingerprint |
+| `src/app/api/integrations/adms/attendance/route.ts` | ingest rekap absensi dari mesin ADMS/fingerprint |
+| `src/app/api/integrations/adms/taps/route.ts` | ingest raw taps dari mesin ADMS/fingerprint dan klasifikasi tap |
+| `src/app/api/integrations/adms/employees/route.ts` | sinkronisasi employee/device mapping ADMS |
 
 ## 5. Struktur `src/lib`
 
@@ -121,11 +123,16 @@ Action file aktif:
 ```text
 auth.ts
 attendance.ts
+alpha.ts
 branches.ts
 dashboard.ts
 divisions.ts
 employees.ts
+employee-group-configs.ts
 grades.ts
+history.ts
+me.ts
+overtime.ts
 payroll.ts / payroll.helpers.ts
 performance.ts
 point-catalog.ts

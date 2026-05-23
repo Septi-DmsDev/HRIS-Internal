@@ -38,6 +38,7 @@ export default async function PerformancePage() {
           catalogEntries={data.catalogEntries}
           activities={activityItems}
           divisionName={data.divisionName}
+          employeeId={roleRow.employeeId!}
         />
       </div>
     );

@@ -74,7 +74,7 @@ Export utama:
 
 Logika penting:
 
-- `getEmployees()` membatasi data SPV berdasarkan `divisionId`,
+- `getEmployees()` membatasi data SPV/KABAG berdasarkan `divisionIds`,
 - `getEmployeeFormOptions()` mengumpulkan master option aktif untuk form,
 - `getEmployeeById()` mengembalikan profil lengkap plus histori dan schedule history,
 - `createEmployee()` selalu menulis histori awal untuk divisi, jabatan, grade, supervisor, dan status,
@@ -118,8 +118,8 @@ Logika penting:
 
 ## 5. Business Rules yang Diterapkan
 
-- role baca employee hanya: `SUPER_ADMIN`, `HRD`, `SPV`, `FINANCE`.
-- SPV hanya boleh melihat karyawan dalam divisinya.
+- role baca employee hanya: `SUPER_ADMIN`, `HRD`, `KABAG`, `SPV`, `FINANCE`.
+- SPV/KABAG hanya boleh melihat karyawan dalam `divisionIds`.
 - karyawan `TEAMWORK` wajib punya supervisor.
 - `trainingGraduationDate` tidak boleh lebih awal dari `startDate`.
 - create employee harus menulis histori awal.
@@ -145,7 +145,7 @@ Logika penting:
 
 ## 7. Edge Case
 
-- SPV tanpa `divisionId` tidak dapat melihat data employee.
+- SPV/KABAG tanpa `divisionIds` tidak dapat melihat data employee.
 - edit employee dengan jadwal baru menutup assignment lama sehari sebelum tanggal efektif.
 - jika `scheduleId` dikosongkan, assignment aktif lama bisa ditutup tanpa membuat assignment baru.
 - delete employee akan menghapus row employee; potensi relasi turunannya bergantung constraint database.
@@ -154,7 +154,7 @@ Logika penting:
 
 - modul employee adalah sumber snapshot untuk performance dan payroll; jangan ubah struktur/semantik field secara sembarangan.
 - histori efektif sangat penting. Kalau ada field baru yang memengaruhi payroll/performance, pertimbangkan apakah perlu history table juga.
-- self-service employee belum ada. Saat ini modul ini murni area admin/HRD/SPV/Finance.
+- halaman `/employees` tetap area admin/HRD/SPV/KABAG/Finance; self-service karyawan berjalan melalui `/dashboard`, `/settings`, `/schedule`, `/tickets`, dan personal payroll detail berbasis `user_roles.employee_id`.
 
 ## 9. Contoh Alur Nyata
 

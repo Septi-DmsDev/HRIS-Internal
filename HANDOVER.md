@@ -1,9 +1,9 @@
 # HRD Dashboard - Handover Document
 
-**Tanggal update:** 2026-05-22  
+**Tanggal update:** 2026-05-23  
 **Branch aktif:** `main`  
 **Remote:** `https://github.com/Septi-DmsDev/HRIS-Internal.git`  
-**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-22
+**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-23
 
 ---
 
@@ -63,7 +63,12 @@ Recent commits terpenting di `main`:
 
 Status kerja saat handover ini ditulis:
 - semua modul MVP sudah usable; lihat tabel Status Phase di bawah
-- dokumentasi disinkronkan ulang 2026-05-19
+- dokumentasi disinkronkan ulang 2026-05-23
+
+Update dokumentasi 2026-05-23:
+- `README.md`, `AGENTS.md`, `HANDOVER.md`, dan `docs/onboarding-curriculum.md` diperbarui untuk mencerminkan ADMS endpoint tambahan, ticket approval dua tahap, dan adjustment/overtime payroll.
+- `docs/codebase-curriculum/00/01/02/03/07/10` diperbarui untuk status schema, auth, ticketing, payroll, dan route aktual.
+- `next-update.md` diperbarui: item tenure allowance, training graduation proration, overtime nominal, patch absence overtime, dan structured adjustment ditandai sesuai implementasi/parsial.
 
 Update dokumentasi 2026-05-19:
 - `HANDOVER.md` diperbarui: commits terbaru, fitur baru Finance, rekap.xlsx, overtime, dan history.
@@ -218,7 +223,9 @@ Sudah ada:
 - payroll preview membaca absensi periode untuk eligibility bonus fulltime/disiplin
 
 ### Integrasi BioFinger AT301 (Batch Attendance)
-- Endpoint ingest: `POST /api/integrations/adms/attendance`
+- Endpoint ingest rekap: `POST /api/integrations/adms/attendance`
+- Endpoint ingest raw taps: `POST /api/integrations/adms/taps`
+- Endpoint ingest employee/device mapping: `POST /api/integrations/adms/employees`
 - Auth: Bearer token via env `ADMS_INGEST_TOKEN`
 - Alur: Cloud server kirim rekap per karyawan per tanggal → Dashboard hitung TELAT
 - Mapping: User ID mesin = `employeeCode`
@@ -281,7 +288,9 @@ Server-side payroll entry points penting:
 | `/performance/training` | Active | Training evaluation |
 | `/tickets` | Active | Ticketing |
 | `/absensi` | Active | Input manual absensi HRD/Admin |
-| `POST /api/integrations/adms/attendance` | Active | Batch ingest BioFinger AT301 (Bearer token) |
+| `POST /api/integrations/adms/attendance` | Active | Batch ingest rekap BioFinger AT301 (Bearer token) |
+| `POST /api/integrations/adms/taps` | Active | Batch ingest raw taps BioFinger AT301 (Bearer token) |
+| `POST /api/integrations/adms/employees` | Active | Sinkronisasi employee/device mapping ADMS (Bearer token) |
 | `/reviews` | Active | Review + incident |
 | `/payroll` | Active | Payroll workspace |
 | `/payroll/[periodId]/[employeeId]` | Active | Payroll detail / payslip structure |
@@ -328,15 +337,16 @@ Perubahan payroll/performance penting:
 
 ### Ticketing
 - semua izin/sakit/cuti berbasis tiket
-- approval ticket saat ini hanya oleh `HRD` dan `SUPER_ADMIN`
-- `SPV`/`KABAG` scoped read/submit, bukan approver final ticket
+- ticket TEAMWORK diproses dua tahap: `SPV`/`KABAG` scoped review menjadi `APPROVED_SPV`, lalu `HRD`/`SUPER_ADMIN` final approve menjadi `APPROVED_HRD`
+- ticket dari `SPV`, `KABAG`, `MANAGERIAL`, `FINANCE`, `PAYROLL_VIEWER`, `HRD`, dan `SUPER_ADMIN` masuk jalur final HRD/SUPER_ADMIN langsung
+- `SPV`/`KABAG` tidak boleh memproses tiket miliknya sendiri dan hanya boleh memproses TEAMWORK dalam `divisionIds`
 
 ### Absensi
 - absensi manual saat ini dipakai untuk test koneksi karyawan-HRD-finance
 - tanpa data absensi periode, bonus fulltime dan disiplin bernilai `0`
 - fulltime butuh semua hari kerja terjadwal `HADIR`
 - disiplin butuh performa minimal 80%, eligible fulltime, dan tidak ada `TELAT`
-- integrasi fingerprint BioFinger AT301 sudah dibangun via endpoint batch `POST /api/integrations/adms/attendance`
+- integrasi fingerprint BioFinger AT301 sudah dibangun via endpoint batch `POST /api/integrations/adms/attendance`, raw taps `/api/integrations/adms/taps`, dan employee mapping `/api/integrations/adms/employees`
 - cloud server mengirim rekap absensi; dashboard menghitung punctuality dari jadwal kerja
 - absensi MANUAL tidak ditimpa oleh batch ADMS; data kosong tidak otomatis menjadi ALPA
 

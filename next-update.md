@@ -11,36 +11,40 @@ Gunakan checklist ini saat implementasi bertahap agar progres bisa dipantau deng
 
 ## A. Tunjangan Masa Kerja Otomatis dari Lolos Training (Quarter Rule)
 
-- [ ] Hitung otomatis tenure dari `trainingGraduationDate` (bukan input manual salary config)
-- [ ] Terapkan quarter mapping:
-- [ ] FEB-MAR-APR -> aktif 1 tahun pada APR tahun berikutnya
-- [ ] MEI-JUN-JUL -> aktif 1 tahun pada JUL tahun berikutnya
-- [ ] AGS-SEP-OKT -> aktif 1 tahun pada OKT tahun berikutnya
-- [ ] NOV-DES-JAN -> aktif 1 tahun pada JAN tahun berikutnya
-- [ ] Gunakan hasil hitung tenure untuk komponen `tenureAllowancePaid` di payroll preview/final
-- [ ] Tambah unit test untuk semua skenario quarter boundary
+Status 2026-05-23: implemented di `src/server/payroll-engine/resolve-tenure-allowance.ts` dan dipakai `generatePayrollPreview()`. Catatan: bucket yang dipakai code aktual adalah Jan-Feb-Mar, Apr-Mei-Jun, Jul-Ags-Sep, dan Okt-Nov-Des.
+
+- [x] Hitung otomatis tenure dari `trainingGraduationDate` (bukan input manual salary config)
+- [x] Terapkan quarter mapping:
+- [x] Jan-Feb-Mar -> aktif 1 tahun pada APR tahun berikutnya
+- [x] Apr-Mei-Jun -> aktif 1 tahun pada JUL tahun berikutnya
+- [x] Jul-Ags-Sep -> aktif 1 tahun pada OKT tahun berikutnya
+- [x] Okt-Nov-Des -> aktif 1 tahun pada JAN tahun berikutnya
+- [x] Gunakan hasil hitung tenure untuk komponen `tenureAllowancePaid` di payroll preview/final
+- [x] Tambah unit test untuk semua skenario quarter boundary
 - PIC:
 - Tanggal:
 - Catatan:
 
 ## B. Mitra Training - Prorata Bonus Fulltime & Disiplin
 
-- [ ] Tambahkan rule prorata bonus fulltime berdasarkan sisa hari kehadiran sejak lolos training dalam periode payroll berjalan
-- [ ] Tambahkan rule prorata bonus disiplin dengan metode prorata yang sama
-- [ ] Pastikan kasus lolos training di tengah periode tidak otomatis 0 bonus
-- [ ] Tambah test contoh: 13/26 hari -> bonus 50%
+- [x] Tambahkan rule prorata bonus fulltime berdasarkan sisa hari kehadiran sejak lolos training dalam periode payroll berjalan
+- [x] Tambahkan rule prorata bonus disiplin dengan metode prorata yang sama
+- [x] Pastikan kasus lolos training di tengah periode tidak otomatis 0 bonus
+- [x] Tambah test contoh: 13/26 hari -> bonus 50%
 - PIC:
 - Tanggal:
 - Catatan:
 
 ## C. Overtime & Lembur + Uang Makan
 
-- [ ] Implementasikan matrix nominal:
-- [ ] 1 jam -> 11.000
-- [ ] 2 jam -> 22.000
-- [ ] 3 jam -> 33.000 + uang makan 10.000
-- [ ] Lembur 1 hari (8 jam + 1 istirahat / jam kerja 1 hari) -> 100.000 + uang makan 20.000
-- [ ] Pastikan komponen masuk ke `overtimeAmount` dan breakdown payslip/export
+Status 2026-05-23: matrix nominal dan komponen THP sudah ada di `src/server/actions/overtime.ts` dan `src/server/actions/payroll.ts`. Test per level overtime/lembur masih perlu ditambah.
+
+- [x] Implementasikan matrix nominal:
+- [x] 1 jam -> 11.000
+- [x] 2 jam -> 22.000
+- [x] 3 jam -> 33.000 + uang makan 10.000
+- [x] Lembur 1 hari (8 jam + 1 istirahat / jam kerja 1 hari) -> 100.000 + uang makan 20.000
+- [x] Pastikan komponen masuk ke `overtimeAmount` dan breakdown payslip/export
 - [ ] Tambah test per level overtime/lembur
 - PIC:
 - Tanggal:
@@ -48,10 +52,12 @@ Gunakan checklist ini saat implementasi bertahap agar progres bisa dipantau deng
 
 ## D. Penambalan Izin Tidak Masuk via Overtime
 
-- [ ] Tambah rule patch izin/sakit/cuti dengan overtime 3 jam (maks 3x)
+Status 2026-05-23: patch request sudah ada, tapi dampak ke eligibility fulltime masih perlu keputusan bisnis eksplisit.
+
+- [x] Tambah rule patch izin/sakit/cuti dengan overtime 3 jam (maks 3x)
 - [ ] Jika patch valid, fulltime bonus tetap eligible sesuai ketentuan
-- [ ] Hitung akumulasi uang overtime dan uang makan dari patch
-- [ ] Tambah guard agar tidak melebihi limit 3x dalam 1 periode
+- [x] Hitung akumulasi uang overtime dan uang makan dari patch
+- [x] Tambah guard agar tidak melebihi limit 3x dalam 1 periode
 - PIC:
 - Tanggal:
 - Catatan:
@@ -70,27 +76,29 @@ Gunakan checklist ini saat implementasi bertahap agar progres bisa dipantau deng
 
 ## F. Variable Pengurang Gaji (Structured Deductions)
 
-- [ ] Tambah variable `GANTI_RUGI_PERSONAL` (semua karyawan)
-- [ ] Tambah variable `GANTI_RUGI_TEAM` (khusus managerial)
-- [ ] Tambah variable `BPJS` (recurring selama status karyawan aktif)
-- [ ] Tambah variable `CICILAN` (dengan tenor dan sisa cicilan)
-- [ ] Tambah variable `KASBON` (maks 300.000 per bulan per karyawan)
+- [x] Tambah variable `GANTI_RUGI_PERSONAL` (semua karyawan)
+- [x] Tambah variable `GANTI_RUGI_TEAM` (khusus managerial)
+- [x] Tambah variable `BPJS` (recurring selama status karyawan aktif)
+- [x] Tambah variable `CICILAN` (dengan tenor dan sisa cicilan)
+- [x] Tambah variable `KASBON` (maks 300.000 per bulan per karyawan)
 - [ ] Tambah variable `MISSPRINT` (pengurangan poin kinerja terpisah dari incident umum)
-- [ ] Tambah validasi, approval, dan audit log untuk masing-masing variable deduction
+- [ ] Tambah approval eksplisit jika dibutuhkan untuk kategori tertentu; validasi server dan audit payroll sudah ada untuk kategori yang implemented
 - PIC:
 - Tanggal:
 - Catatan:
 
 ## G. Variable Penambah Gaji (Selain Gaji Pokok & Bonus Jabatan)
 
+Status 2026-05-23: kategori penambah manual sudah ada untuk CSM/Printing dan master grade compensation sudah dipakai, tetapi fixed nominal prestasi teamwork 140/165 masih perlu finalisasi kebijakan nominal bila ingin dipisah dari master grade.
+
 - [ ] Pastikan insentif prestasi teamwork:
 - [ ] 140% -> 200.000
 - [ ] 165% -> 400.000
-- [ ] Tambah variable manual `BONUS_OMSET_SMB` (Omset 1/2/3)
-- [ ] Tambah variable manual `BONUS_KINERJA_SM_TAMBAHAN` (PP & CSA)
-- [ ] Tambah variable manual `BONUS_COUNTER_MESIN` (Teknisi Printing)
-- [ ] Tambah validasi eligibility per divisi/role
-- [ ] Tambah audit log untuk seluruh penambah manual
+- [x] Tambah variable manual `BONUS_OMSET_1_CSM` / `BONUS_OMSET_2_CSM` / `BONUS_OMSET_3_CSM`
+- [x] Tambah variable manual `BONUS_KINERJA_CSM_TERTINGGI`
+- [x] Tambah variable manual `BONUS_COUNTER_MESIN` (Teknisi Printing)
+- [x] Tambah validasi eligibility per divisi/role
+- [x] Tambah audit log untuk seluruh penambah manual implemented
 - PIC:
 - Tanggal:
 - Catatan:

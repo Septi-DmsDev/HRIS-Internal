@@ -53,6 +53,19 @@ type DateGroup = {
   deletableEntryIds: string[];
 };
 
+type PersistedDraftState = {
+  activeTab: "submit" | "history";
+  selectedDate: string;
+  draftItems: DraftItem[];
+  jobGroups: JobGroup[];
+  editingDate: string | null;
+  currentJobId: string;
+  currentJobLines: CurrentJobLine[];
+  inputCatalogId: string;
+  inputQty: string;
+  appendingDate: string | null;
+};
+
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "secondary",
   approved: "default",
@@ -85,6 +98,143 @@ function formatDate(d: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+const DRAFT_STORAGE_VERSION = 1;
+
+function getDraftStorageKey(employeeId?: string | null) {
+  return employeeId ? `performance:tw-draft:v${DRAFT_STORAGE_VERSION}:${employeeId}` : null;
+}
+
+function clearDraftStorage(storageKey: string | null) {
+  if (!storageKey || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(storageKey);
+  } catch {
+    // Browser storage can be disabled; draft submission must still work.
+  }
+}
+
+function readPersistedDraftState(storageKey: string | null): PersistedDraftState | null {
+  if (!storageKey || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedDraftState>;
+    if (
+      typeof parsed.selectedDate !== "string" ||
+      !Array.isArray(parsed.draftItems) ||
+      !Array.isArray(parsed.jobGroups) ||
+      !Array.isArray(parsed.currentJobLines)
+    ) {
+      return null;
+    }
+    return {
+      activeTab: parsed.activeTab === "history" ? "history" : "submit",
+      selectedDate: parsed.selectedDate,
+      draftItems: parsed.draftItems as DraftItem[],
+      jobGroups: parsed.jobGroups as JobGroup[],
+      editingDate: typeof parsed.editingDate === "string" || parsed.editingDate === null ? parsed.editingDate : null,
+      currentJobId: typeof parsed.currentJobId === "string" ? parsed.currentJobId : "",
+      currentJobLines: parsed.currentJobLines as CurrentJobLine[],
+      inputCatalogId: typeof parsed.inputCatalogId === "string" ? parsed.inputCatalogId : "",
+      inputQty: typeof parsed.inputQty === "string" ? parsed.inputQty : "1",
+      appendingDate: typeof parsed.appendingDate === "string" || parsed.appendingDate === null ? parsed.appendingDate : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDraftItems(items: unknown, validCatalogEntryIds: Set<string>) {
+  if (!Array.isArray(items)) return [] as DraftItem[];
+
+  return items.flatMap((item, index) => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Partial<DraftItem>;
+    if (
+      typeof candidate.key !== "string" ||
+      typeof candidate.catalogEntryId !== "string" ||
+      typeof candidate.jobId !== "string" ||
+      typeof candidate.workName !== "string"
+    ) {
+      return [];
+    }
+    if (!validCatalogEntryIds.has(candidate.catalogEntryId)) return [];
+
+    const pointValue = Number(candidate.pointValue);
+    const qty = Number(candidate.qty);
+    if (!Number.isFinite(pointValue) || !Number.isFinite(qty) || pointValue <= 0 || qty <= 0) return [];
+
+    return [
+      {
+        key: candidate.key || `${candidate.jobId}-${index}`,
+        catalogEntryId: candidate.catalogEntryId,
+        jobId: normalizeJobId(candidate.jobId),
+        workName: candidate.workName,
+        pointValue,
+        qty,
+      },
+    ];
+  });
+}
+
+function normalizeCurrentJobLines(lines: unknown, validCatalogEntryIds: Set<string>) {
+  if (!Array.isArray(lines)) return [] as CurrentJobLine[];
+
+  return lines.flatMap((line, index) => {
+    if (!line || typeof line !== "object") return [];
+    const candidate = line as Partial<CurrentJobLine>;
+    if (
+      typeof candidate.key !== "string" ||
+      typeof candidate.catalogEntryId !== "string" ||
+      typeof candidate.workName !== "string"
+    ) {
+      return [];
+    }
+    if (!validCatalogEntryIds.has(candidate.catalogEntryId)) return [];
+
+    const pointValue = Number(candidate.pointValue);
+    const qty = Number(candidate.qty);
+    if (!Number.isFinite(pointValue) || !Number.isFinite(qty) || pointValue <= 0 || qty <= 0) return [];
+
+    return [
+      {
+        key: candidate.key || `${candidate.catalogEntryId}-${index}`,
+        catalogEntryId: candidate.catalogEntryId,
+        workName: candidate.workName,
+        pointValue,
+        qty,
+      },
+    ];
+  });
+}
+
+function normalizeJobGroups(groups: unknown, draftItems: DraftItem[]) {
+  const result: JobGroup[] = [];
+  const seen = new Set<string>();
+
+  if (Array.isArray(groups)) {
+    for (const group of groups) {
+      if (!group || typeof group !== "object") continue;
+      const candidate = group as Partial<JobGroup>;
+      if (typeof candidate.jobId !== "string") continue;
+      const jobId = normalizeJobId(candidate.jobId);
+      if (!jobId) continue;
+      if (seen.has(jobId)) continue;
+      seen.add(jobId);
+      result.push({ jobId });
+    }
+  }
+
+  for (const item of draftItems) {
+    if (!item.jobId) continue;
+    if (seen.has(item.jobId)) continue;
+    seen.add(item.jobId);
+    result.push({ jobId: item.jobId });
+  }
+
+  return result;
 }
 
 type BrowserTesseract = {
@@ -175,35 +325,66 @@ type Props = {
   catalogEntries: TwCatalogEntry[];
   activities: TwActivityItem[];
   divisionName: string | null;
+  employeeId: string;
 };
 
-export default function TwPerformanceClient({ catalogEntries, activities, divisionName }: Props) {
+export default function TwPerformanceClient({ catalogEntries, activities, divisionName, employeeId }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"submit" | "history">("submit");
+  const routeWorkDate = searchParams.get("workDate");
+  const routeFromOvertime = searchParams.get("fromOvertime");
+  const initialRouteWorkDate = routeWorkDate && /^\d{4}-\d{2}-\d{2}$/.test(routeWorkDate) ? routeWorkDate : null;
+  const draftStorageKey = useMemo(() => getDraftStorageKey(employeeId), [employeeId]);
+  const persistedDraftState = useMemo(() => readPersistedDraftState(draftStorageKey), [draftStorageKey]);
+  const shouldRestorePersistedDraft = Boolean(
+    persistedDraftState && (!initialRouteWorkDate || initialRouteWorkDate === persistedDraftState.selectedDate)
+  );
+  const shouldPreserveExistingDraft = Boolean(
+    persistedDraftState && initialRouteWorkDate && initialRouteWorkDate !== persistedDraftState.selectedDate
+  );
+  const initialDraftState = useMemo(() => {
+    if (!shouldRestorePersistedDraft || !persistedDraftState) return null;
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
-  const [jobGroups, setJobGroups] = useState<JobGroup[]>([]);
-  const [editingDate, setEditingDate] = useState<string | null>(null);
+    const validCatalogEntryIds = new Set(catalogEntries.map((entry) => entry.id));
+    const restoredDraftItems = normalizeDraftItems(persistedDraftState.draftItems, validCatalogEntryIds);
+
+    return {
+      ...persistedDraftState,
+      draftItems: restoredDraftItems,
+      jobGroups: normalizeJobGroups(persistedDraftState.jobGroups, restoredDraftItems),
+      currentJobLines: normalizeCurrentJobLines(persistedDraftState.currentJobLines, validCatalogEntryIds),
+      inputCatalogId: validCatalogEntryIds.has(persistedDraftState.inputCatalogId) ? persistedDraftState.inputCatalogId : "",
+      inputQty: persistedDraftState.inputQty || "1",
+    };
+  }, [catalogEntries, persistedDraftState, shouldRestorePersistedDraft]);
+  const initialOvertimeMessage =
+    initialRouteWorkDate && routeFromOvertime
+      ? `Tanggal draft diatur dari overtime approved (${initialRouteWorkDate}). Lanjutkan isi Job ID dan jenis pekerjaan.`
+      : null;
+  const [activeTab, setActiveTab] = useState<"submit" | "history">(() => initialDraftState?.activeTab ?? "submit");
+
+  const [selectedDate, setSelectedDate] = useState(() => initialDraftState?.selectedDate ?? initialRouteWorkDate ?? todayStr());
+  const [draftItems, setDraftItems] = useState<DraftItem[]>(() => initialDraftState?.draftItems ?? []);
+  const [jobGroups, setJobGroups] = useState<JobGroup[]>(() => initialDraftState?.jobGroups ?? []);
+  const [editingDate, setEditingDate] = useState<string | null>(() => initialDraftState?.editingDate ?? null);
 
   // Stage 1: current Job ID group being built
-  const [currentJobId, setCurrentJobId] = useState("");
-  const [currentJobLines, setCurrentJobLines] = useState<CurrentJobLine[]>([]);
+  const [currentJobId, setCurrentJobId] = useState(() => initialDraftState?.currentJobId ?? "");
+  const [currentJobLines, setCurrentJobLines] = useState<CurrentJobLine[]>(() => initialDraftState?.currentJobLines ?? []);
 
   // Line input for current job group
-  const [inputCatalogId, setInputCatalogId] = useState("");
-  const [inputQty, setInputQty] = useState("1");
+  const [inputCatalogId, setInputCatalogId] = useState(() => initialDraftState?.inputCatalogId ?? "");
+  const [inputQty, setInputQty] = useState(() => initialDraftState?.inputQty ?? "1");
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const comboboxRef = useRef<HTMLDivElement>(null);
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(() => initialOvertimeMessage);
   const [historyDetail, setHistoryDetail] = useState<DateGroup | null>(null);
   // Mode tambah ke draft pending
-  const [appendingDate, setAppendingDate] = useState<string | null>(null);
+  const [appendingDate, setAppendingDate] = useState<string | null>(() => initialDraftState?.appendingDate ?? null);
 
   // Edit satu entri pending di modal detail
   type EditingEntry = {
@@ -226,16 +407,72 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    const workDate = searchParams.get("workDate");
-    const fromOvertime = searchParams.get("fromOvertime");
-    if (!workDate) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
-    setSelectedDate(workDate);
-    setActiveTab("submit");
-    if (fromOvertime) {
-      setSuccess(`Tanggal draft diatur dari overtime approved (${workDate}). Lanjutkan isi Job ID dan jenis pekerjaan.`);
+    if (!initialRouteWorkDate) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSelectedDate(initialRouteWorkDate);
+      setActiveTab("submit");
+      if (routeFromOvertime) {
+        setSuccess(`Tanggal draft diatur dari overtime approved (${initialRouteWorkDate}). Lanjutkan isi Job ID dan jenis pekerjaan.`);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRouteWorkDate, routeFromOvertime]);
+
+  useEffect(() => {
+    if (!draftStorageKey) return;
+
+    const hasPersistableState =
+      draftItems.length > 0 ||
+      jobGroups.length > 0 ||
+      currentJobLines.length > 0 ||
+      currentJobId.trim().length > 0 ||
+      inputCatalogId.length > 0 ||
+      inputQty !== "1" ||
+      editingDate !== null ||
+      appendingDate !== null;
+
+    if (!hasPersistableState) {
+      if (shouldPreserveExistingDraft) return;
+      clearDraftStorage(draftStorageKey);
+      return;
     }
-  }, [searchParams]);
+
+    const payload: PersistedDraftState = {
+      activeTab,
+      selectedDate,
+      draftItems,
+      jobGroups,
+      editingDate,
+      currentJobId,
+      currentJobLines,
+      inputCatalogId,
+      inputQty,
+      appendingDate,
+    };
+
+    try {
+      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(payload));
+    } catch {
+      // Draft recovery is best-effort; server submission remains the source of truth.
+    }
+  }, [
+    activeTab,
+    appendingDate,
+    currentJobId,
+    currentJobLines,
+    draftItems,
+    draftStorageKey,
+    editingDate,
+    inputCatalogId,
+    inputQty,
+    jobGroups,
+    shouldPreserveExistingDraft,
+    selectedDate,
+  ]);
 
   const selectedCatalog = catalogEntries.find((c) => c.id === inputCatalogId);
 
@@ -372,10 +609,13 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
         setError(result.error);
         return;
       }
+      clearDraftStorage(draftStorageKey);
       setDraftItems([]);
       setJobGroups([]);
       setCurrentJobId("");
       setCurrentJobLines([]);
+      setInputCatalogId("");
+      setInputQty("1");
       setEditingDate(null);
       setAppendingDate(null);
       setSuccess(

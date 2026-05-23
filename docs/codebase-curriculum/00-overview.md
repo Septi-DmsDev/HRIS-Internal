@@ -40,10 +40,10 @@ Fungsi bisnis yang sudah muncul di code:
 - aktivitas harian poin-based (Mitra Kerja, Borongan, Training), batch submit, approval SPV/KABAG, HRD flow, dan self-service TEAMWORK;
 - generate performa bulanan;
 - input massal persentase performa managerial per periode oleh HRD/SUPER_ADMIN;
-- ticketing izin/sakit/cuti dan leave quota;
-- antrian approval tiket untuk SUPER_ADMIN/HRD/SPV/KABAG;
-- input manual absensi untuk bonus fulltime/disiplin payroll;
-- overtime request dan draft overtime;
+- ticketing izin/sakit/cuti, leave quota, dan audit log keputusan tiket;
+- antrian approval tiket dua tahap untuk SUPER_ADMIN/HRD/SPV/KABAG;
+- input manual absensi dan ingest ADMS/fingerprint untuk bonus fulltime/disiplin payroll;
+- overtime request, patch absence overtime, draft overtime, approval, dan payroll integration;
 - history audit lintas modul;
 - review karyawan dan incident log;
 - evaluasi training;
@@ -110,11 +110,11 @@ Employee Link
 | Employee profiling | ada | create, update, delete, histori, detail page |
 | Employee placement | ada | `/positioning` untuk mutasi massal; `/divisi` dipertahankan sebagai redirect kompatibilitas |
 | Performance point | ada, perlu hardening | self-service poin-based ada; input massal managerial ada; deadline H+1/H+2 masih perlu enforcement lengkap |
-| Attendance | ada, manual + ingest API ADMS | `/absensi` untuk input manual, `/api/integrations/adms/attendance` untuk sinkronisasi mesin; dipakai payroll untuk fulltime/disiplin |
-| Overtime | ada | `/overtime` mengelola request overtime, draft entry, approval, dan payroll integration |
-| Ticketing leave | ada, perlu hardening | self-service employee-link ada; quota eligibility memakai quarter helper |
+| Attendance | ada, manual + ingest API ADMS | `/absensi` untuk input manual; `/api/integrations/adms/attendance`, `/taps`, dan `/employees` untuk sinkronisasi mesin; dipakai payroll untuk fulltime/disiplin |
+| Overtime | ada, perlu test action | `/overtime` mengelola request overtime, patch absence 3 jam, draft entry, approval, dan payroll integration |
+| Ticketing leave | ada, perlu hardening test/integrasi | self-service employee-link ada; SPV/KABAG scoped review; HRD/SUPER_ADMIN final approval; quota eligibility memakai quarter helper |
 | History audit | ada | `/history` menggabungkan audit lintas modul untuk HRD/SUPER_ADMIN |
-| Ticket approval queue | ada | `/ticketingapproval` dipakai role approver untuk antrian dan histori approval tiket |
+| Ticket approval queue | ada | `/ticketingapproval` dipakai SPV/KABAG untuk review TEAMWORK dan HRD/SUPER_ADMIN untuk final approval |
 | Review & incident | ada | review score 5 aspek, validate review, create incident |
 | Training evaluation | ada | keputusan lulus/gagal ada; payroll kini mendukung prorate bonus fulltime/disiplin untuk kelulusan training di tengah periode |
 | Payroll | ada, perlu hardening | period, snapshot, preview, finalize, paid, lock, export Excel, payslip PDF, rekap Excel dengan breakdown summary |
@@ -130,7 +130,7 @@ Employee Link
 | Performance deadline | Business rules meminta TW input H+1 dan SPV approve H+2; enforcement belum lengkap di semua action. |
 | Training graduation | Transisi `graduateTrainee()` masih mengubah status langsung; mitigasi payroll saat ini memprorate bonus fulltime/disiplin jika tanggal lulus berada di tengah periode. |
 | Audit log | Payroll dan performance activity punya log kuat; ticket/review/training masih perlu audit hardening bila diminta. |
-| Payroll hardening | `next-update.md` mencatat overtime, SP quarter, structured additions/deductions, tunjangan masa kerja otomatis, dan rule lain yang belum penuh. |
+| Payroll hardening | `next-update.md` mencatat sebagian item sudah selesai/parsial; sisa utama: SP quarter duration, audit tambahan master/credentials, approval/test coverage, dan beberapa mapping master. |
 
 Catatan implementasi payroll terbaru:
 - tunjangan masa kerja dihitung dari `training_graduation_date` via `resolveTenureAllowanceAmount()` dengan bucket:
@@ -138,6 +138,8 @@ Catatan implementasi payroll terbaru:
   - Apr-Mei-Jun -> efektif Juli setelah 13-15 bulan;
   - Jul-Ags-Sep -> efektif Oktober setelah 13-15 bulan;
   - Okt-Nov-Des -> efektif Januari setelah 13-15 bulan.
+- overtime nominal dibaca dari `overtime_requests` approved dan masuk `overtimeAmount` di preview/detail/export/payslip.
+- structured adjustments sudah memakai kategori Zod dan prefix `reason`; BPJS/Transport recurring disimpan di `recurring_payroll_adjustments`.
 
 ## 8. Risiko Teknis Paling Penting
 

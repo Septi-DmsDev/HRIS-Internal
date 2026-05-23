@@ -35,7 +35,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 | Enum | Nilai |
 |---|---|
-| `user_role` | `SUPER_ADMIN`, `HRD`, `FINANCE`, `SPV`, `TEAMWORK`, `MANAGERIAL`, `PAYROLL_VIEWER` |
+| `user_role` | `SUPER_ADMIN`, `HRD`, `KABAG`, `SPV`, `MANAGERIAL`, `FINANCE`, `TEAMWORK`, `PAYROLL_VIEWER` |
 
 ### Relasi
 
@@ -81,7 +81,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `employee_supervisor_histories` | `previous_supervisor_employee_id`, `new_supervisor_employee_id` | histori atasan | employee |
 | `employee_status_histories` | `previous_employment_status`, `new_employment_status`, `previous_payroll_status`, `new_payroll_status` | histori status kerja/payroll | employee, audit manual |
 | `work_schedules` | `code`, `name`, `description`, `is_active` | template jadwal mingguan | master data, employee, performance, payroll |
-| `work_shift_masters` | `code`, `name`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_tolerance_minutes` | master shift dan toleransi absensi | master data, absensi, payroll |
+| `work_shift_masters` | `code`, `name`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_tolerance_minutes`, `is_overnight`, `applicable_division_codes` | master shift dan toleransi absensi | master data, absensi, payroll |
 | `work_schedule_days` | `schedule_id`, `day_of_week`, `day_status`, `is_working_day`, `start_time`, `end_time`, `break_start`, `break_end`, `check_in_tolerance_minutes`, `break_tolerance_minutes`, `check_out_start`, `check_out_tolerance_minutes`, `target_points` | detail 7 hari per jadwal | performance target day, payroll scheduled work day |
 | `employee_schedule_assignments` | `employee_id`, `schedule_id`, `effective_start_date`, `effective_end_date` | histori penugasan jadwal | employee detail, performance, payroll |
 | `employee_hobbies` | `employee_id`, `hobby_name`, `notes` | self-service profil hobi | settings, profile enrichment |
@@ -138,6 +138,7 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `ticket_type` | `CUTI`, `CUTI_TAHUNAN`, `CUTI_BULANAN`, `CUTI_HAMIL_LAHIR`, `CUTI_NIKAH`, `SAKIT`, `IZIN`, `IZIN_ACARA`, `IZIN_JAM`, `MENINGGAL`, `EMERGENCY`, `SETENGAH_HARI`, `RESIGN` |
 | `ticket_status` | `DRAFT`, `SUBMITTED`, `AUTO_APPROVED`, `AUTO_REJECTED`, `NEED_REVIEW`, `APPROVED_SPV`, `APPROVED_HRD`, `REJECTED`, `CANCELLED`, `LOCKED` |
 | `ticket_payroll_impact` | `UNPAID`, `PAID_QUOTA_MONTHLY`, `PAID_QUOTA_ANNUAL` |
+| `attendance_ticket_audit_action` | `APPROVE_SPV`, `APPROVE_HRD`, `REJECT_SPV`, `REJECT_HRD` |
 | `attendance_status` | `HADIR`, `ALPA`, `IZIN`, `SAKIT`, `CUTI`, `OFF` |
 | `attendance_punctuality_status` | `TEPAT_WAKTU`, `TELAT` |
 | `attendance_source` | `MANUAL`, `FINGERPRINT_ADMS` |
@@ -148,19 +149,26 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | `review_status` | `DRAFT`, `SUBMITTED`, `VALIDATED`, `LOCKED` |
 | `incident_type` | `KOMPLAIN`, `MISS_PROSES`, `TELAT`, `AREA_KOTOR`, `PELANGGARAN`, `SP1`, `SP2`, `PENGHARGAAN` |
 | `incident_impact` | `REVIEW_ONLY`, `PAYROLL_POTENTIAL`, `NONE` |
+| `alpha_action_status` | `PENDING`, `CALL_SENT`, `SP1_ISSUED` |
+| `employee_alert_type` | `ALPHA_CALL`, `ALPHA_SP1` |
 
 ### Tabel
 
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
-| `attendance_tickets` | `employee_id`, `ticket_type`, `start_date`, `end_date`, `days_count`, `status`, `payroll_impact`, `approved_by_user_id`, `rejection_reason`, `created_by_user_id` | tiket izin/sakit/cuti | tickets, dashboard, payroll |
+| `attendance_tickets` | `employee_id`, `ticket_type`, `start_date`, `end_date`, `days_count`, `izin_hours`, `status`, `payroll_impact`, `approved_by_user_id`, `rejection_reason`, `created_by_user_id` | tiket izin/sakit/cuti/resign | tickets, dashboard, payroll |
+| `attendance_ticket_audit_logs` | `ticket_id`, `employee_id`, `action`, `actor_user_id`, `actor_role`, `payload` | audit keputusan SPV/KABAG dan HRD/SUPER_ADMIN | ticket approval, history |
 | `employee_attendance_records` | `employee_id`, `attendance_date`, `attendance_status`, `check_in_time`, `check_out_time`, `punctuality_status`, `source` | rekap kehadiran manual/fingerprint | absensi, payroll |
 | `attendance_fallback_requests` | `employee_id`, `attendance_date`, `photo_url`, `status`, `review_notes` | fallback saat fingerprint gagal | absensi, payroll review |
 | `overtime_requests` | `employee_id`, `request_date`, `overtime_type`, `overtime_placement`, `overtime_hours`, `base_amount`, `meal_amount`, `total_amount`, `period_code`, `status` | request overtime dan komponen THP | overtime, payroll |
 | `overtime_draft_entries` | `overtime_request_id`, `employee_id`, `work_date`, `job_id`, `work_name`, `quantity`, `point_value`, `total_points` | draft detail overtime yang bisa diaudit | overtime, payroll |
-| `leave_quotas` | `employee_id`, `year`, `monthly_quota_total/used`, `annual_quota_total/used` | kuota paid leave | tickets, payroll effect |
+| `leave_quotas` | `employee_id`, `year`, `monthly_quota_total/used`, `annual_quota_total/used`, `event_quota_total/used` | kuota paid leave dan izin acara | tickets, payroll effect |
 | `employee_reviews` | skor 5 aspek, `total_score`, `category`, `status`, `validated_by_user_id` | review kualitas kerja | reviews, dashboard |
 | `incident_logs` | `incident_type`, `impact`, `payroll_deduction`, `recorded_by_role`, `is_active` | kejadian yang bisa berdampak ke review/payroll | reviews, dashboard, payroll |
+| `attendance_alpha_events` | `employee_id`, `alpha_date`, `alpha_count`, `status`, `call_sent_at`, `sp1_issued_at` | workflow tindak lanjut alpa | alpha, review/incident follow-up |
+| `employee_alerts` | `employee_id`, `alert_type`, `title`, `message`, `ref_date`, `read_at` | notifikasi internal karyawan | dashboard/self-service |
+
+Catatan validasi: enum database masih memiliki `SETENGAH_HARI`, tetapi `createTicketSchema` saat ini tidak mengekspos tipe itu di form tiket.
 
 ### Relasi Penting
 
@@ -183,11 +191,13 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
 | `employee_salary_configs` | semua nominal base payroll per employee | sumber nominal saat preview | payroll |
+| `grade_compensation_configs` | tunjangan dan bonus tier 80/90/100/140/165 per grade | sumber default nominal bonus/tunjangan | payroll, master grades |
 | `payroll_periods` | `period_code`, `period_start_date`, `period_end_date`, `status`, timestamp lifecycle | periode payroll anchor | payroll, finance |
 | `managerial_kpi_summaries` | `period_id`, `employee_id`, `performance_percent`, `status` | sumber performa managerial | payroll |
 | `payroll_employee_snapshots` | snapshot branch/division/position/grade/status/salary pada periode | menjaga payroll tetap stabil | payroll |
-| `payroll_results` | komponen nominal dibayar, deduction, THP, `breakdown` JSON, status | hasil payroll per employee | payroll, finance, payslip |
-| `payroll_adjustments` | `adjustment_type`, `amount`, `reason`, actor | koreksi manual per periode | payroll |
+| `payroll_results` | `performance_percent`, `approved_unpaid_leave_days`, `approved_paid_leave_days`, `incident_deduction_amount`, `sp_penalty_multiplier`, `base_salary_paid`, `grade_allowance_paid`, `tenure_allowance_paid`, `daily_allowance_paid`, `overtime_amount`, `bonus_*`, deduction, THP, `breakdown` JSON, status | hasil payroll per employee | payroll, finance, payslip |
+| `payroll_adjustments` | `adjustment_type`, `amount`, `reason`, actor | koreksi manual per periode dengan prefix kategori | payroll |
+| `recurring_payroll_adjustments` | `employee_id`, `category`, `amount`, `reason`, `is_active` | BPJS/Transport recurring | payroll, finance |
 | `payroll_audit_logs` | `action`, actor, notes, payload | audit trail payroll | payroll |
 
 ### Relasi Penting
@@ -216,7 +226,6 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 ## 10. Perlu Review Lanjutan
 
 - `status: sebagian`
-- schema sudah cukup lengkap untuk payroll, tetapi beberapa komponen nominal masih perlu dipantau terhadap action preview:
-  `dailyAllowanceAmount`, `overtimeRateAmount`, `overtimeAmount`, `dailyAllowancePaid`.
+- schema sudah cukup lengkap untuk payroll; `overtimeAmount` sudah dibaca dari `overtime_requests`, sementara `dailyAllowanceAmount`, `overtimeRateAmount`, dan `dailyAllowancePaid` masih perlu dipantau terhadap kebutuhan bisnis berikutnya.
 - repo tidak menunjukkan policy RLS pada tabel-tabel ini.
-- belum ada tabel audit khusus untuk ticket approval, review validation, atau training decision selain log yang implisit di record utama.
+- ticket approval sudah punya `attendance_ticket_audit_logs`; review validation dan training decision masih perlu audit hardening bila menjadi requirement.

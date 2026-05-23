@@ -2,7 +2,7 @@
 
 ## Status
 
-`status: tersedia, tetapi belum lengkap`
+`status: tersedia, usable, masih perlu hardening enterprise`
 
 File ditemukan:
 
@@ -19,7 +19,8 @@ Gap yang perlu dibangun:
 
 - rule "koreksi setelah paid masuk periode berikutnya" belum dibantu alur UI khusus,
 - belum ada scope payroll per divisi,
-- attendance manual sudah dibaca preview untuk eligibility fulltime/disiplin, tetapi integrasi fingerprint/ADMS masih perlu hardening penuh.
+- attendance manual dan ADMS source sudah dibaca preview untuk eligibility fulltime/disiplin, tetapi QA integrasi fingerprint/ADMS masih perlu diperluas.
+- SP quarter duration dan beberapa audit/reporting tambahan masih perlu keputusan/implementasi.
 
 ## 1. Tujuan Modul
 
@@ -31,6 +32,8 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 - auto-preview payroll saat periode dibuka,
 - eligibility bonus fulltime/disiplin dari rekap absensi manual,
 - komponen overtime dari `overtime_requests`,
+- tunjangan masa kerja otomatis dari `training_graduation_date`,
+- prorate kelulusan training tengah periode untuk fulltime/disiplin dan selisih gaji,
 - snapshot data employee,
 - finalisasi,
 - status paid,
@@ -55,6 +58,7 @@ Modul payroll mengubah data final dari modul lain menjadi hasil gaji yang bisa d
 | `src/server/payroll-engine/calculate-managerial-payroll.ts` | payroll MANAGERIAL | preview payroll | pure |
 | `src/server/payroll-engine/resolve-discipline-bonus.ts` | gate payout bonus disiplin dari eligibility absensi | preview payroll | pure |
 | `src/server/payroll-engine/resolve-sp-performance-penalty.ts` | pengurang performa absolut SP1/SP2 | preview payroll | pure |
+| `src/server/payroll-engine/resolve-tenure-allowance.ts` | tunjangan masa kerja otomatis dari tanggal lulus training | preview payroll | pure |
 | `src/server/payroll-engine/resolve-payroll-status-transition.ts` | aturan paid/lock | mark paid, lock | pure |
 | `src/server/payroll-engine/build-payroll-export-rows.ts` | baris export Excel | route export | pure |
 | `src/server/payroll-engine/build-payslip-breakdown.ts` | grouping addition/deduction | detail page, PDF | pure |
@@ -174,6 +178,8 @@ Logika penting:
   - menghitung SP penalty dari incident type `SP1` dan `SP2` sebagai pengurang performa absolut sebelum tier bonus dipilih,
   - membaca `employeeAttendanceRecords` periode untuk menentukan bonus fulltime dan bonus disiplin,
   - membaca `overtime_requests` berstatus `APPROVED` dalam periode untuk dihitung sebagai komponen overtime THP,
+  - menghitung tunjangan masa kerja otomatis dari `training_graduation_date` memakai quarter anchor,
+  - memprorate bonus fulltime/disiplin dan selisih gaji reguler untuk karyawan yang lulus training di tengah periode,
   - untuk snapshot struktur (divisi/jabatan/grade), sistem mengutamakan histori perubahan terbaru berdasarkan waktu input (`createdAt`); `effectiveDate` tetap disimpan sebagai referensi tanggal efektif,
   - tanpa data absensi periode, bonus fulltime dan bonus disiplin dibayar `0`,
   - bonus disiplin tidak dipicu oleh input persentase/manual KPI; eligibility-nya mengikuti absensi dan incident telat,
@@ -188,6 +194,7 @@ Logika penting:
 - `markPayrollPaid()` dan `lockPayrollPeriod()`:
   - memakai engine transisi status.
 - `generatePayrollPreview()` juga memasukkan total `overtime_requests` APPROVED ke THP.
+- `generatePayrollPreview()` menyimpan metadata proration training, attendance eligibility, SP penalty, izin jam, dan source performa ke `payroll_results.breakdown`.
 
 ### `src/server/payroll-engine/resolve-payroll-period.ts`
 
@@ -278,6 +285,8 @@ Catatan:
 - default gaji pokok:
   - training `Rp1.000.000`
   - reguler `Rp1.200.000`
+- tunjangan masa kerja otomatis naik `Rp100.000` per tahun berdasarkan tanggal lulus training dan anchor quarter.
+- kelulusan training di tengah periode memprorate fulltime/disiplin dan menambahkan selisih gaji reguler sebagai adjustment internal.
 - bonus level memakai persentase raw, bukan persentase yang dibulatkan di UI.
 - bonus kinerja membayar nominal tier 80/90/100 secara langsung sesuai rentang performa; nominal tersebut tidak dikali lagi dengan persentase tier.
 - bonus fulltime dan bonus disiplin default `0` jika data absensi periode belum ada.
@@ -286,6 +295,7 @@ Catatan:
 - unpaid leave memotong gaji pokok dibayar.
 - SP penalty mengurangi performa payroll secara absolut: SP1 -10 poin, SP2 -20 poin; nominal bonus tidak dikalikan multiplier SP.
 - finalisasi mengunci monthly performance dan activity yang relevan.
+- overtime approved masuk komponen `overtimeAmount`, export, detail, dan payslip.
 - period status transisi:
   `DRAFT/FINALIZED` → `PAID` → `LOCKED`
 
@@ -295,6 +305,7 @@ Catatan:
 |---|---|---|---|
 | `payroll_periods` | ya | ya | periode payroll |
 | `employee_salary_configs` | ya | ya | nominal dasar per employee |
+| `grade_compensation_configs` | ya | ya | master tunjangan/bonus per grade |
 | `managerial_kpi_summaries` | ya | ya | KPI managerial |
 | `payroll_employee_snapshots` | ya | ya | snapshot data payroll |
 | `payroll_results` | ya | ya | hasil payroll per employee |
@@ -327,9 +338,9 @@ Catatan:
 
 ## 8. Hal yang Perlu Diperhatikan Developer
 
-- `dailyAllowanceAmount` dan `overtimeRateAmount` sudah ada di salary config; overtime dibaca dari `overtime_requests` approved per periode.
+- `dailyAllowanceAmount` dan `overtimeRateAmount` sudah ada di salary config; overtime aktual dibaca dari `overtime_requests` approved per periode.
 - adjustment period-specific dan recurring adjustment adalah sumber penambah/pengurang manual.
-- absensi manual saat ini adalah sumber payroll untuk bonus fulltime/disiplin; integrasi fingerprint/ADMS akan menulis ke tabel yang sama dengan source berbeda.
+- absensi manual dan fingerprint/ADMS menulis ke tabel yang sama dengan source berbeda; payroll membaca keduanya sebagai record periode.
 - payroll saat ini belum menerapkan scope divisi; aksesnya global sesuai role payroll.
 - rule "jangan hitung payroll di browser" dipatuhi: semua kalkulasi ada di server action/engine.
 

@@ -86,8 +86,8 @@ Role berasal dari enum `user_role` di `src/lib/db/schema/auth.ts` dan `USER_ROLE
 |---|---|
 | `SUPER_ADMIN` | hampir semua modul, user management, payroll lifecycle |
 | `HRD` | master data, employee, performance HR flow, review, ticketing, training, payroll read |
-| `KABAG` | scoped division access untuk performance/review/ticket/employee read dan overtime/schedule tertentu |
-| `SPV` | scoped division access untuk performance/review/ticket/employee read dan overtime/schedule tertentu |
+| `KABAG` | scoped division access untuk performance/review/ticket/employee read dan schedule tertentu; ticket review TEAMWORK ke HRD queue |
+| `SPV` | scoped division access untuk performance/review/ticket/employee read, overtime approval/schedule tertentu, dan ticket review TEAMWORK ke HRD queue |
 | `FINANCE` | payroll/finance dan employee read |
 | `TEAMWORK` | self-service performance/ticket/overtime bila linked ke employee |
 | `MANAGERIAL` | self-service ticket/schedule/payroll detail bila linked ke employee, KPI source untuk payroll |
@@ -134,7 +134,7 @@ SPV/KABAG login
 | Master data | admin/HRD | read where needed | tidak | terbatas |
 | Employee | admin/HRD | scoped read | personal profile | read for payroll roles |
 | Performance | admin/HRD | scoped approval | TEAMWORK self-service | tidak |
-| Ticketing | admin/HRD | scoped flow | self ticket | read/payroll impact where allowed |
+| Ticketing | HRD/SUPER_ADMIN final approval | review TEAMWORK scoped, bukan tiket sendiri | self ticket | self ticket/payroll impact where allowed |
 | Review/Incident | admin/HRD | scoped | personal summary | tidak |
 | Training | admin/HRD | scoped read | tidak | tidak |
 | Payroll | admin/finance | generally no workspace | personal detail only | read/write by role |

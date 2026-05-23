@@ -38,7 +38,7 @@ Login
 → akses semua modul
 → kelola master data
 → kelola employee
-→ approve performance/ticket/overtime/review bila perlu
+→ approve final performance/ticket/overtime/review bila perlu
 → lihat history lintas modul
 → ikut mengelola payroll
 ```
@@ -73,7 +73,7 @@ Login
 Login
 → hanya melihat karyawan divisinya
 → memproses aktivitas harian divisinya
-→ memproses ticket dan overtime divisinya
+→ review ticket TEAMWORK dan memproses overtime divisinya
 → membuat review dan incident divisinya
 → melihat trainee divisinya
 ```
@@ -135,9 +135,10 @@ User input overtime
 ```text
 Ticket dibuat
 → attendance_tickets status SUBMITTED
-→ approver memutuskan approve/reject
-→ jika approve dan eligible:
-   leave_quotas bisa bertambah used
+→ SPV/KABAG review TEAMWORK menjadi APPROVED_SPV
+→ HRD/SUPER_ADMIN final approve menjadi APPROVED_HRD
+→ jika eligible:
+   leave_quotas dipakai sesuai jenis tiket
 → payrollImpact tersimpan di ticket
 → payroll membaca ticket approved dalam periode aktif
 ```

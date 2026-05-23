@@ -1,6 +1,6 @@
 # Onboarding Curriculum - HRIS Internal
 
-Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-22.
+Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-23.
 
 ## 1. Tujuan Belajar
 
@@ -55,7 +55,7 @@ Rule penting:
 | `references/` | Aturan bisnis, playbook implementasi, tech stack, konsep phase. |
 | `docs/codebase-curriculum/` | Dokumentasi codebase per modul. |
 | `supabase/migrations/` | Riwayat migration SQL Drizzle/Supabase. |
-| `scripts/seed-admin.ts` | Seed user admin awal. |
+| `scripts/adms_server/*` | Helper contoh/server integrasi ADMS bila dipakai. |
 | `package.json` | Dependency dan script. |
 
 ### `src/app`
@@ -80,6 +80,7 @@ Rule penting:
 | `src/app/(dashboard)/schedule/*` | Jadwal pribadi/tim. |
 | `src/app/(dashboard)/scheduler/*` | Scheduler operational view. |
 | `src/app/(dashboard)/users/*` | Manajemen user role dan employee login. |
+| `src/app/api/integrations/adms/*` | Ingest attendance/employee data dari ADMS/fingerprint via bearer token. |
 
 ### `src/lib`
 
@@ -196,8 +197,9 @@ Contoh:
 - RLS policy tidak terlihat jelas di migration repo; proteksi yang terlihat saat ini ada di server action.
 - Deadline H+1/H+2 performance belum lengkap.
 - Rule training "reguler efektif periode payroll berikutnya" belum sepenuhnya tercermin karena `graduateTrainee()` langsung mengubah status.
+- Payroll sudah memitigasi kelulusan training tengah periode dengan prorate bonus fulltime/disiplin dan selisih gaji reguler, tetapi transisi status bisnis tetap perlu keputusan.
 - Audit log belum merata untuk semua modul non-payroll.
-- `next-update.md` masih berisi beberapa payroll/master-data hardening yang belum selesai.
+- `next-update.md` masih berisi beberapa payroll/master-data hardening yang belum selesai atau parsial; baca checkbox terbaru sebelum memulai implementasi.
 
 ## 9. Checklist Sebelum Ngoding
 

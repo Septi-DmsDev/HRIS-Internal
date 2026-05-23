@@ -15,6 +15,7 @@ File ditemukan:
 - `src/server/services/point-catalog-service.ts`
 - `src/app/(dashboard)/performance/page.tsx`
 - `src/app/(dashboard)/performance/PerformanceCatalogClient.tsx`
+- `src/app/(dashboard)/performance/TwPerformanceClient.tsx`
 
 Gap yang perlu dibangun:
 
@@ -26,6 +27,7 @@ Fitur yang sudah ada di code:
 
 - input massal persentase performa managerial bulanan oleh HRD/SUPER_ADMIN untuk role KABAG/SPV/MANAGERIAL.
 - self-service TEAMWORK performance helper sudah ada di action dan route layer.
+- draft self-service TW yang belum dikirim dipersist sementara di `sessionStorage` browser per employee login.
 
 ## 1. Tujuan Modul
 
@@ -51,6 +53,7 @@ Modul ini mengelola:
 | `src/server/actions/performance.ts` | workspace performance dan workflow aktivitas | UI aktivitas | HRD/SUPER_ADMIN/SPV |
 | `src/app/(dashboard)/performance/page.tsx` | page server | user modul performance | merakit data untuk client |
 | `src/app/(dashboard)/performance/PerformanceCatalogClient.tsx` | UI tab aktivitas/monthly/catalog | user internal | client terbesar kedua |
+| `src/app/(dashboard)/performance/TwPerformanceClient.tsx` | UI self-service TW | TEAMWORK/MANAGERIAL employee-linked | persist draft lokal sampai berhasil dikirim |
 | `src/app/(dashboard)/master/catalogpoin/*` | workspace katalog poin legacy | HRD/SUPER_ADMIN | sinkronisasi workbook dan entry catalog |
 
 ## 3. Alur Kerja Modul
@@ -152,9 +155,10 @@ Export utama:
 
 Logika penting:
 
-- akses baca sekarang hanya `SUPER_ADMIN`, `HRD`, `SPV`,
+- akses baca sekarang mencakup `SUPER_ADMIN`, `HRD`, `KABAG`, `SPV`, `TEAMWORK`, dan `MANAGERIAL`,
 - daftar karyawan dibatasi ke kelompok `TEAMWORK` aktif,
 - `saveDailyActivityEntry()` menolak jika pekerjaan poin tidak cocok dengan divisi aktual harian,
+- `TwPerformanceClient` menyimpan draft belum terkirim di `sessionStorage` per `employeeId`; draft dihapus setelah `batchSubmitDraft()`/`appendToPendingDraft()` sukses,
 - only status `DRAFT`, `DITOLAK_SPV`, `REVISI_TW` yang masih bisa diubah,
 - approval menghormati scope divisi SPV,
 - generate monthly menghapus hasil periode lama lalu menulis ulang seluruh employee TEAMWORK aktif.
@@ -192,7 +196,7 @@ Logika penting:
 - target override untuk divisi `OFFSET` adalah `39.000`.
 - generate monthly memakai divisi snapshot per awal periode, bukan divisi aktual harian.
 - hanya status `DISETUJUI_SPV`, `OVERRIDE_HRD`, `DIKUNCI_PAYROLL` yang dihitung ke monthly performance.
-- SPV hanya boleh approve/reject aktivitas divisinya.
+- SPV/KABAG hanya boleh approve/reject aktivitas divisinya.
 - route `/teamperformance` dipakai untuk tampilan performa tim/self-service TEAMWORK.
 
 ## 6. Data yang Dibaca dan Ditulis
@@ -215,6 +219,7 @@ Logika penting:
 
 - tidak ada versi katalog aktif → aktivitas tidak bisa disimpan.
 - pekerjaan poin beda divisi dengan `actualDivisionId` → ditolak.
+- draft TW yang belum dikirim akan pulih setelah refresh/pindah menu selama browser tab/session yang sama masih menyimpan `sessionStorage`.
 - activity yang sudah diajukan/disetujui tidak bisa diedit.
 - hanya activity `DRAFT` yang boleh dihapus.
 - jika employee tidak punya jadwal di periode itu, target days menjadi `0`.
@@ -222,7 +227,7 @@ Logika penting:
 ## 8. Hal yang Perlu Diperhatikan Developer
 
 - rule deadline H+1 dan H+2 ada di dokumen bisnis, tetapi belum ada enforcement di code.
-- self-service TW belum ada meski role `TEAMWORK` tersedia di type dan permission helper.
+- self-service TW sudah tersedia lewat helper personal dan route dashboard/team performance; tetap cek action yang dipakai jika mengubah flow input harian.
 - generate monthly saat ini belum mengurangi target karena ticket approved; ia hanya membaca working day schedule.
   Artinya integrasi penuh rule "approved leave tidak masuk target" belum terlihat di generator ini.
 

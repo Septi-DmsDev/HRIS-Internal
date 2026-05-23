@@ -84,7 +84,8 @@ Untuk modul poin kinerja:
 
 Untuk modul ticketing:
 - antrian approval tersedia di route `/ticketingapproval`;
-- role approver aktif saat ini: `SUPER_ADMIN`, `HRD`, `SPV`, `KABAG`;
+- action approver aktif saat ini: `SUPER_ADMIN`, `HRD`, `SPV`, `KABAG`;
+- `SPV`/`KABAG` hanya melakukan scoped review tiket `TEAMWORK` menjadi `APPROVED_SPV`; `HRD`/`SUPER_ADMIN` melakukan final approval menjadi `APPROVED_HRD` dan menentukan payroll impact;
 - tetap enforce scope/role check di server action ticketing.
 
 Untuk payroll:
