@@ -16,9 +16,10 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 | `branches.ts` | CRUD branch | master data |
 | `divisions.ts` | CRUD division | master data |
 | `positions.ts` | CRUD position | master data |
+| `employee-group-configs.ts` | konfigurasi kelompok karyawan | master data |
 | `grades.ts` | CRUD grade | master data |
 | `work-schedules.ts` | work schedule + work shift master | master data |
-| `employees.ts` | employee list/detail/create/update/delete | employee profiling |
+| `employees.ts` | employee list/detail/import/export/create/update/placement/access/delete | employee profiling |
 | `dashboard.ts` | dashboard summary | dashboard |
 | `point-catalog.ts` | katalog poin overview, import workbook, entry CRUD | performance |
 | `performance.ts` | activity workflow, self-service TW, SPV/KABAG queue, monthly performance | performance |
@@ -68,6 +69,7 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 | Grade | `getGrades`, `createGrade`, `updateGrade`, `deleteGrade` |
 | Work schedule | `getWorkSchedules`, `getActiveWorkSchedules`, `createWorkSchedule`, `updateWorkSchedule`, `deleteWorkSchedule` |
 | Shift master | `getWorkShiftMasters`, `createWorkShiftMaster`, `updateWorkShiftMaster`, `deleteWorkShiftMaster` |
+| Employee group config | `getEmployeeGroupConfigs`, `updateEmployeeGroupConfig` |
 
 ### Employee
 
@@ -75,9 +77,16 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 |---|---|
 | `getEmployees` | list employee dengan role/scope |
 | `getEmployeeFormOptions` | opsi master data untuk form |
+| `getEmployeesForExport` | sumber route export XLSX karyawan |
+| `getDivisionManagementOptions` | opsi route `/positioning` |
 | `getEmployeeById` | detail employee + histories |
 | `createEmployee` | transaction, insert histories awal, schedule assignment |
+| `importEmployeesFromXlsx` | import workbook karyawan dengan validasi master |
 | `updateEmployee` | transaction, tulis history bila field berubah |
+| `toggleEmployeeBpjs` | update status BPJS per karyawan |
+| `bulkUpdateEmployeeOrganization` | mutasi massal cabang/divisi/jabatan/grade/kelompok |
+| `deleteEmployeePositionHistory` / `deleteEmployeeDivisionHistory` / `deleteEmployeeGradeHistory` | hapus histori tertentu dengan guard role |
+| `createMissingEmployeeAccounts` / `revokeResignedEmployeesAccess` / `syncEmployeeRoles` | utility sinkronisasi akses employee-linked |
 | `deleteEmployee` | hard delete; hati-hati dengan histori/relasi |
 
 ### Performance
@@ -90,10 +99,15 @@ Dokumen ini merangkum file di `src/server/actions`, karena folder inilah boundar
 | `approveDailyActivityEntry` | approve SPV/KABAG/HRD dan log |
 | `rejectDailyActivityEntry` | reject dengan catatan dan log |
 | `generateMonthlyPerformance` | generate target/performance per periode |
+| `inputEmployeeMonthlyPerformance` | input massal persentase managerial per periode |
+| `deleteMonthlyPerformance` / `deleteMonthlyPerformanceByPeriod` | hapus rekap bulanan sesuai guard |
 | `getTwPerformanceData` | self-service TEAMWORK |
 | `batchSubmitDraft` | submit banyak draft personal |
+| `appendToPendingDraft` | simpan draft personal ke server tanpa langsung submit |
 | `getSpvPendingActivities` | queue SPV/KABAG |
+| `getTeamPerformanceWorkspace` | data route `/teamperformance` |
 | `batchDecideDraftActivities` | batch approve/reject |
+| `updatePendingActivityEntry` | koreksi activity pending/draft sesuai status |
 | `deleteActivityEntry` | hanya untuk state yang diizinkan |
 
 Rule engine terkait:
@@ -137,6 +151,8 @@ Rule engine terkait:
 | `approveTicket` | transaction, consume quota bila eligible |
 | `rejectTicket` | rejection reason wajib |
 | `cancelTicket` | pembuat atau role tertentu |
+| `getTicketsForApproval` | queue approval dua tahap |
+| `getTicketsForApprovalHistory` | history review/approval ticket |
 | `generateLeaveQuota` | HRD/admin generate quota tahunan |
 
 Helper terkait:
@@ -186,6 +202,7 @@ Helper terkait:
 | `upsertManagerialKpiSummary` | KPI managerial validated |
 | `createPayrollPeriod` | audit `CREATE_PERIOD` |
 | `addPayrollAdjustment` | audit `ADD_ADJUSTMENT` |
+| `updatePayrollAdjustment` | edit nominal/keterangan adjustment; kategori dan employee tidak berubah |
 | `deletePayrollAdjustment` | hapus period adjustment atau nonaktifkan recurring adjustment |
 | `generatePayrollPreview` | membuat snapshot dan draft result; dipanggil otomatis oleh `/payroll/page.tsx` untuk periode editable |
 | `finalizePayroll` | lock result, monthly performance, dan activity terkait |

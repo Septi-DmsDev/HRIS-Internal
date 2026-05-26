@@ -110,7 +110,7 @@ Employee Link
 | Employee profiling | ada | create, update, delete, histori, detail page |
 | Employee placement | ada | `/positioning` untuk mutasi massal; `/divisi` dipertahankan sebagai redirect kompatibilitas |
 | Performance point | ada, perlu hardening | self-service poin-based ada; input massal managerial ada; deadline H+1/H+2 masih perlu enforcement lengkap |
-| Attendance | ada, manual + ingest API ADMS | `/absensi` untuk input manual; `/api/integrations/adms/attendance`, `/taps`, dan `/employees` untuk sinkronisasi mesin; dipakai payroll untuk fulltime/disiplin |
+| Attendance | ada, manual + ingest API ADMS | `/absensi` untuk input manual; `POST /api/integrations/adms/attendance`, `POST /api/integrations/adms/taps`, dan `GET /api/integrations/adms/employees` untuk sinkronisasi mesin; dipakai payroll untuk fulltime/disiplin |
 | Overtime | ada, perlu test action | `/overtime` mengelola request overtime, patch absence 3 jam, draft entry, approval, dan payroll integration |
 | Ticketing leave | ada, perlu hardening test/integrasi | self-service employee-link ada; SPV/KABAG scoped review; HRD/SUPER_ADMIN final approval; quota eligibility memakai quarter helper |
 | History audit | ada | `/history` menggabungkan audit lintas modul untuk HRD/SUPER_ADMIN |

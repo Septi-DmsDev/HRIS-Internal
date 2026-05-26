@@ -17,7 +17,7 @@ src/app/(dashboard) page/client
 -> revalidatePath/response ke UI
 ```
 
-Action dan helper aktual mencakup `users`, `settings`, `me`, `schedule`, `work-schedules`, `employees` (termasuk placement helper), `performance`, `tickets`, `attendance`, `reviews`, `training`, `payroll`, serta route handler export karyawan/payroll XLSX dan payslip PDF. Modul `settings` juga sudah mencakup self-service profil enrichment karyawan (hobi, riwayat pendidikan, kompetensi). Jangan memakai dokumen konsep lama sebagai status implementasi tanpa membandingkan code.
+Action dan helper aktual mencakup `users`, `settings`, `me`, `schedule`, `work-schedules`, `employee-group-configs`, `employees` (termasuk import/export, placement helper, dan sinkronisasi akses karyawan), `point-catalog`, `performance`, `tickets`, `attendance`, `overtime`, `reviews`, `training`, `history`, `payroll`, serta route handler export karyawan/payroll XLSX, rekap payroll XLSX, bulk slips PDF, payslip PDF, dan ingest ADMS/fingerprint. Modul `settings` juga sudah mencakup self-service profil enrichment karyawan (hobi, riwayat pendidikan, kompetensi). Jangan memakai dokumen konsep lama sebagai status implementasi tanpa membandingkan code.
 
 ## 1. Sebelum Coding
 

@@ -1,6 +1,6 @@
 # Onboarding Curriculum - HRIS Internal
 
-Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-23.
+Dokumen ini membantu engineer baru memahami codebase aktual repo per 2026-05-25.
 
 ## 1. Tujuan Belajar
 
@@ -65,10 +65,13 @@ Rule penting:
 | `src/app/page.tsx` | Redirect root ke login/dashboard. |
 | `src/app/(auth)/login/*` | Halaman login dan form login. |
 | `src/app/(dashboard)/dashboard/*` | Dashboard utama. |
-| `src/app/(dashboard)/employees/*` | List/detail profil karyawan. |
-| `src/app/(dashboard)/master/*` | Master branch, division, position, grade, work schedule, shift. |
-| `src/app/(dashboard)/performance/*` | Performance point dan training evaluation. |
+| `src/app/(dashboard)/employees/*` | List/detail profil karyawan dan export XLSX. |
+| `src/app/(dashboard)/positioning/*` | Mutasi massal cabang/divisi/jabatan/grade/kelompok. |
+| `src/app/(dashboard)/divisi/*` | Redirect kompatibilitas ke `/positioning`. |
+| `src/app/(dashboard)/master/*` | Master branch, division, position, employee group, grade, work schedule, shift, dan katalog poin legacy. |
+| `src/app/(dashboard)/performance/*` | Performance point, draft/history workflow, team performance, dan training evaluation. |
 | `src/app/(dashboard)/tickets/*` | Ticketing izin/sakit/cuti. |
+| `src/app/(dashboard)/ticketingapproval/*` | Queue review SPV/KABAG dan final approval HRD/SUPER_ADMIN. |
 | `src/app/(dashboard)/absensi/*` | Input manual absensi kehadiran dan kedisiplinan. |
 | `src/app/(dashboard)/overtime/*` | Request overtime dan draft entry. |
 | `src/app/(dashboard)/history/*` | Audit trail lintas modul. |
@@ -80,7 +83,7 @@ Rule penting:
 | `src/app/(dashboard)/schedule/*` | Jadwal pribadi/tim. |
 | `src/app/(dashboard)/scheduler/*` | Scheduler operational view. |
 | `src/app/(dashboard)/users/*` | Manajemen user role dan employee login. |
-| `src/app/api/integrations/adms/*` | Ingest attendance/employee data dari ADMS/fingerprint via bearer token. |
+| `src/app/api/integrations/adms/*` | Ingest attendance/raw taps dan expose mapping employee aktif dari ADMS/fingerprint via bearer token. |
 
 ### `src/lib`
 
@@ -104,6 +107,8 @@ Rule penting:
 | `src/server/attendance-engine/*` | Helper eligibility absensi untuk payroll. |
 | `src/server/actions/overtime.ts` | Request overtime dan decision flow. |
 | `src/server/actions/history.ts` | Audit trail lintas modul. |
+| `src/server/actions/employee-group-configs.ts` | Konfigurasi kelompok karyawan dan payroll mode. |
+| `src/server/services/schedule-assignment-service.ts` | Helper perubahan assignment jadwal, termasuk OFF karena ticket final. |
 | `src/server/payroll-engine/*` | Payroll period, bonus level, payroll calculators, payslip, export, summary. |
 | `src/server/ticketing-engine/*` | Helper eligibility leave quota. |
 | `src/server/review-engine/*` | Helper reviewer employee link. |

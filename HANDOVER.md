@@ -1,9 +1,9 @@
 # HRD Dashboard - Handover Document
 
-**Tanggal update:** 2026-05-23  
+**Tanggal update:** 2026-05-25
 **Branch aktif:** `main`  
 **Remote:** `https://github.com/Septi-DmsDev/HRIS-Internal.git`  
-**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-23
+**Status saat ini:** repo sudah memiliki flow MVP lintas phase; dokumentasi utama disinkronkan ulang dengan alur code aktual pada 2026-05-25
 
 ---
 
@@ -11,13 +11,16 @@
 
 HRD Dashboard internal berbasis Next.js App Router untuk mengelola:
 - employee profiling dan master data
+- placement/mutation karyawan
 - performance point TEAMWORK
-- manual attendance (`/absensi`)
+- manual attendance (`/absensi`) dan ADMS/fingerprint ingest
 - training evaluation
 - ticketing izin/sakit/cuti
+- ticket approval queue dua tahap
 - overtime request dan draft overtime
 - review dan incident
 - history audit lintas modul
+- schedule dan scheduler operational view
 - payroll preview/finalize/paid/locked
 - finance summary
 
@@ -56,6 +59,14 @@ Catatan phase 3 saat ini:
 ## Status Git Terbaru
 
 Recent commits terpenting di `main`:
+Terbaru:
+- `932e783` Update View History Draft - scheduler OFF sync, target days by assignment, ticket schedule service, dan docs terkait
+- `3bc709d` Update Pengisian Draft - self-service draft performance dan dokumentasi modul terkait
+- `4c55e06` Update Deploy - Dockerfile deployment adjustment
+- `c4092f2` Update - Dockerfile/package deployment adjustment
+- `e8d3d0e` Update Masa Kerja - tenure allowance resolver/test dan dokumentasi payroll
+
+Riwayat sebelumnya:
 - `c723958` Tambah rekap breakdown cabang/divisi/jabatan/grade/kelompok di summary rekap.xlsx
 - `8346a61` Remove export-accounts-a6 route
 - `e813dde` Update Edit Deduction — tombol edit adjustment di Finance + server action `updatePayrollAdjustment`
@@ -63,7 +74,12 @@ Recent commits terpenting di `main`:
 
 Status kerja saat handover ini ditulis:
 - semua modul MVP sudah usable; lihat tabel Status Phase di bawah
-- dokumentasi disinkronkan ulang 2026-05-23
+- dokumentasi disinkronkan ulang 2026-05-25
+
+Update dokumentasi 2026-05-25:
+- `AGENTS.md`, `README.md`, `HANDOVER.md`, `references/business-rules.md`, `references/implementation-playbook.md`, dan `references/tech-stack.md` diperbarui untuk mencerminkan ADMS aktif, route aktif terbaru, employee placement/access helper, overtime, ticket approval, scheduler OFF sync, dan export payroll lengkap.
+- `docs/onboarding-curriculum.md` dan `docs/codebase-curriculum/README.md` diperbarui untuk tanggal/status terbaru.
+- `docs/codebase-curriculum/00/01/03/04/05/06/12/13/14` diperbarui untuk schema/action/flow/test aktual, termasuk employee-group configs, grade compensation, import/export karyawan, self-service draft performance, ADMS raw tap classifier, dan test engine payroll/attendance terbaru.
 
 Update dokumentasi 2026-05-23:
 - `README.md`, `AGENTS.md`, `HANDOVER.md`, dan `docs/onboarding-curriculum.md` diperbarui untuk mencerminkan ADMS endpoint tambahan, ticket approval dua tahap, dan adjustment/overtime payroll.
@@ -103,6 +119,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 DATABASE_URL=
 NEXT_PUBLIC_APP_URL=
+ADMS_INGEST_TOKEN=
 ```
 
 Catatan:
@@ -183,6 +200,8 @@ Sudah ada:
 - employees
 - employee detail
 - employee history tables
+- employee placement/mutation route `/positioning`
+- employee import/export XLSX
 
 ### Performance Phase 2
 Sudah ada:
@@ -219,13 +238,14 @@ Sudah ada:
 - input/update absensi manual per karyawan dan tanggal
 - status kehadiran `HADIR`, `ALPA`, `IZIN`, `SAKIT`, `CUTI`, `OFF`
 - status disiplin `TEPAT_WAKTU` / `TELAT`
-- tabel disiapkan untuk source `MANUAL` dan `FINGERPRINT_ADMS`
+- tabel mendukung source `MANUAL` dan `FINGERPRINT_ADMS`
 - payroll preview membaca absensi periode untuk eligibility bonus fulltime/disiplin
+- ADMS batch attendance/raw taps menulis ke tabel yang sama dan tidak menimpa record source `MANUAL`
 
 ### Integrasi BioFinger AT301 (Batch Attendance)
 - Endpoint ingest rekap: `POST /api/integrations/adms/attendance`
 - Endpoint ingest raw taps: `POST /api/integrations/adms/taps`
-- Endpoint ingest employee/device mapping: `POST /api/integrations/adms/employees`
+- Endpoint employee/device mapping: `GET /api/integrations/adms/employees`
 - Auth: Bearer token via env `ADMS_INGEST_TOKEN`
 - Alur: Cloud server kirim rekap per karyawan per tanggal → Dashboard hitung TELAT
 - Mapping: User ID mesin = `employeeCode`
@@ -234,7 +254,7 @@ Sudah ada:
 - Rule: check-in tanpa toleransi, break/check-out toleransi 5 menit (configurable per jadwal via `breakToleranceMinutes` dan `checkInToleranceMinutes` di `workScheduleDays`)
 - Data kosong tidak auto-ALPA: HRD yang tindak lanjut
 - Manual attendance (source=`MANUAL`) tidak ditimpa oleh ADMS batch
-- Validasi payload: `src/lib/validations/attendance.ts` → `admsAttendanceIngestSchema`
+- Validasi payload: `src/lib/validations/attendance.ts` (`admsAttendanceIngestSchema`, `admsRawTapIngestSchema`)
 - Schema DB field baru (migration `0023_attendance_schedule_break_tolerance.sql`): `breakStart`, `breakEnd`, `breakToleranceMinutes`, `checkInToleranceMinutes` di tabel `workScheduleDays`
 
 ### Payroll / Finance
@@ -279,19 +299,33 @@ Server-side payroll entry points penting:
 | `/dashboard` | Active | Operational dashboard |
 | `/employees` | Active | Employee list |
 | `/employees/[id]` | Active | Employee admin detail |
+| `/employees/export.xlsx` | Active | Export data karyawan XLSX |
+| `/positioning` | Active | Mutasi massal cabang/divisi/jabatan/grade/kelompok |
+| `/divisi` | Redirect | Kompatibilitas route lama ke `/positioning` |
+| `/history` | Active | Audit trail lintas modul |
+| `/master` | Active | Landing/master shift shortcut |
 | `/master/branches` | Active | CRUD |
 | `/master/divisions` | Active | CRUD |
 | `/master/positions` | Active | CRUD |
+| `/master/employee-groups` | Active | Konfigurasi kelompok karyawan |
+| `/master/catalogpoin` | Active | Katalog poin legacy/sync workbook |
 | `/master/grades` | Active | CRUD |
 | `/master/work-schedules` | Active | CRUD |
 | `/performance` | Active | Activity, monthly performance, point catalog |
 | `/performance/training` | Active | Training evaluation |
+| `/teamperformance` | Active | Tampilan performa tim/self-service |
 | `/tickets` | Active | Ticketing |
+| `/ticketingapproval` | Active | Queue review SPV/KABAG dan final approval HRD/Admin |
 | `/absensi` | Active | Input manual absensi HRD/Admin |
 | `POST /api/integrations/adms/attendance` | Active | Batch ingest rekap BioFinger AT301 (Bearer token) |
 | `POST /api/integrations/adms/taps` | Active | Batch ingest raw taps BioFinger AT301 (Bearer token) |
-| `POST /api/integrations/adms/employees` | Active | Sinkronisasi employee/device mapping ADMS (Bearer token) |
+| `GET /api/integrations/adms/employees` | Active | Sinkronisasi employee/device mapping ADMS (Bearer token) |
+| `/overtime` | Active | Request, draft, schedule, dan approval overtime |
 | `/reviews` | Active | Review + incident |
+| `/schedule` | Active | Jadwal personal/tim |
+| `/scheduler` | Active | Scheduler operational view |
+| `/settings` | Active | Account settings user aktif |
+| `/users` | Active | Role/user management |
 | `/payroll` | Active | Payroll workspace |
 | `/payroll/[periodId]/[employeeId]` | Active | Payroll detail / payslip structure |
 | `/payroll/[periodId]/[employeeId]/payslip.pdf` | Active | Payslip PDF |
@@ -346,7 +380,7 @@ Perubahan payroll/performance penting:
 - tanpa data absensi periode, bonus fulltime dan disiplin bernilai `0`
 - fulltime butuh semua hari kerja terjadwal `HADIR`
 - disiplin butuh performa minimal 80%, eligible fulltime, dan tidak ada `TELAT`
-- integrasi fingerprint BioFinger AT301 sudah dibangun via endpoint batch `POST /api/integrations/adms/attendance`, raw taps `/api/integrations/adms/taps`, dan employee mapping `/api/integrations/adms/employees`
+- integrasi fingerprint BioFinger AT301 sudah dibangun via endpoint batch `POST /api/integrations/adms/attendance`, raw taps `POST /api/integrations/adms/taps`, dan employee mapping `GET /api/integrations/adms/employees`
 - cloud server mengirim rekap absensi; dashboard menghitung punctuality dari jadwal kerja
 - absensi MANUAL tidak ditimpa oleh batch ADMS; data kosong tidak otomatis menjadi ALPA
 

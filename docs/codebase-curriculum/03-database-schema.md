@@ -55,10 +55,11 @@ Menjelaskan semua schema Drizzle yang benar-benar ada di repo:
 
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
-| `branches` | `name`, `address`, `is_active` | master cabang/penempatan | employee, master data, payroll snapshot |
+| `branches` | `name`, `address`, `latitude`, `longitude`, `max_attendance_radius_meters`, `is_active` | master cabang/penempatan dan radius absensi | employee, master data, payroll snapshot |
 | `divisions` | `name`, `code`, `branch_id`, `training_pass_percent`, `daily_point_target`, `is_active` | master divisi, standar lulus training, dan target poin harian | employee, schedule, performance, ticketing, training, payroll |
 | `positions` | `name`, `code`, `employee_group`, `is_active` | master jabatan dan kelompok karyawan | employee, payroll snapshot |
 | `grades` | `name`, `code`, `description`, `is_active` | master grade | employee, payroll snapshot |
+| `employee_group_configs` | `employee_group`, `display_name`, `base_salary_amount`, `legacy_alias`, `payroll_mode`, `sort_order`, `is_active` | konfigurasi label/payroll mode kelompok karyawan | master, employee, payroll/finance |
 
 ## 5. Schema `employee.ts`
 
@@ -191,7 +192,7 @@ Catatan validasi: enum database masih memiliki `SETENGAH_HARI`, tetapi `createTi
 | Tabel | Kolom penting | Fungsi bisnis | Modul yang memakai |
 |---|---|---|---|
 | `employee_salary_configs` | semua nominal base payroll per employee | sumber nominal saat preview | payroll |
-| `grade_compensation_configs` | tunjangan dan bonus tier 80/90/100/140/165 per grade | sumber default nominal bonus/tunjangan | payroll, master grades |
+| `grade_compensation_configs` | tunjangan dan bonus tier 80/90/100/140/165 per grade | sumber default nominal bonus/tunjangan | payroll, finance |
 | `payroll_periods` | `period_code`, `period_start_date`, `period_end_date`, `status`, timestamp lifecycle | periode payroll anchor | payroll, finance |
 | `managerial_kpi_summaries` | `period_id`, `employee_id`, `performance_percent`, `status` | sumber performa managerial | payroll |
 | `payroll_employee_snapshots` | snapshot branch/division/position/grade/status/salary pada periode | menjaga payroll tetap stabil | payroll |
@@ -229,3 +230,4 @@ Catatan validasi: enum database masih memiliki `SETENGAH_HARI`, tetapi `createTi
 - schema sudah cukup lengkap untuk payroll; `overtimeAmount` sudah dibaca dari `overtime_requests`, sementara `dailyAllowanceAmount`, `overtimeRateAmount`, dan `dailyAllowancePaid` masih perlu dipantau terhadap kebutuhan bisnis berikutnya.
 - repo tidak menunjukkan policy RLS pada tabel-tabel ini.
 - ticket approval sudah punya `attendance_ticket_audit_logs`; review validation dan training decision masih perlu audit hardening bila menjadi requirement.
+- enum `payroll_audit_action` belum punya nilai khusus update/delete adjustment atau update grade compensation; action terkait perlu memakai enum yang tersedia atau migration enum baru jika audit lebih granular dibutuhkan.

@@ -176,11 +176,18 @@ Untuk karyawan dengan masa kerja > 1 tahun dan punya tunjangan tahunan:
 
 ## Absensi Kehadiran dan Disiplin
 
-Absensi saat ini diinput manual oleh `SUPER_ADMIN` atau `HRD` lewat `/absensi`. Data ini adalah sumber sementara untuk menguji koneksi engine karyawan-HRD-finance sebelum integrasi mesin ceklok/fingerprint.
+Absensi saat ini dapat diinput manual oleh `SUPER_ADMIN` atau `HRD` lewat `/absensi`, dan dapat diingest dari mesin ADMS/fingerprint melalui endpoint server-to-server. Keduanya menulis ke tabel absensi yang sama dan menjadi sumber eligibility bonus fulltime/disiplin payroll.
 
 Sumber data:
-- `MANUAL` untuk input HRD saat ini;
-- `FINGERPRINT_ADMS` disiapkan untuk integrasi ADMS webserver API di tahap berikutnya.
+- `MANUAL` untuk input HRD/Admin lewat `/absensi`;
+- `FINGERPRINT_ADMS` untuk ingest rekap/raw taps ADMS melalui `POST /api/integrations/adms/attendance` dan `POST /api/integrations/adms/taps`;
+- `GET /api/integrations/adms/employees` menyediakan sinkronisasi mapping karyawan aktif untuk server ADMS.
+
+Catatan implementasi:
+- endpoint ADMS memakai bearer token `ADMS_INGEST_TOKEN`;
+- data `MANUAL` tidak ditimpa oleh batch ADMS;
+- raw taps diklasifikasikan ke check-in, break, dan check-out sesuai jadwal kerja;
+- data kosong dari mesin tidak otomatis menjadi `ALPA`; HRD tetap perlu tindak lanjut.
 
 Aturan payroll:
 - jika tidak ada data absensi pada periode payroll, bonus fulltime dan bonus disiplin dianggap tidak eligible sehingga dibayar `0`;

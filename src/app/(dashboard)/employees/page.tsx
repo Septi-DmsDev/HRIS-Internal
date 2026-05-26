@@ -19,6 +19,7 @@ export default async function EmployeesPage() {
     employeeCode: string;
     nik: string | null;
     fullName: string;
+    employmentStatus: "TRAINING" | "REGULER" | "DIALIHKAN_TRAINING" | "TIDAK_LOLOS" | "NONAKTIF" | "RESIGN";
     phoneNumber: string | null;
     bpjsKetenagakerjaanNumber: string | null;
     bpjsKetenagakerjaanActive: boolean;
@@ -39,6 +40,7 @@ export default async function EmployeesPage() {
       employeeCode: uid,
       nik: employee.nik,
       fullName: name,
+      employmentStatus: employee.employmentStatus,
       phoneNumber: phone,
       bpjsKetenagakerjaanNumber: employee.bpjsKetenagakerjaanNumber,
       bpjsKetenagakerjaanActive: employee.bpjsKetenagakerjaanActive,

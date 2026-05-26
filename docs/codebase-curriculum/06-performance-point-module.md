@@ -154,7 +154,7 @@ Fungsi utama:
 workflow aktivitas harian dan generate bulanan.
 
 Export utama:
-`getPerformanceWorkspace()`, `saveDailyActivityEntry()`, `submitDailyActivityEntry()`, `approveDailyActivityEntry()`, `rejectDailyActivityEntry()`, `generateMonthlyPerformance()`, `deleteActivityEntry()`
+`getPerformanceWorkspace()`, `saveDailyActivityEntry()`, `submitDailyActivityEntry()`, `approveDailyActivityEntry()`, `rejectDailyActivityEntry()`, `generateMonthlyPerformance()`, `inputEmployeeMonthlyPerformance()`, `deleteMonthlyPerformance()`, `deleteMonthlyPerformanceByPeriod()`, `getTwPerformanceData()`, `batchSubmitDraft()`, `appendToPendingDraft()`, `getSpvPendingActivities()`, `getTeamPerformanceWorkspace()`, `batchDecideDraftActivities()`, `updatePendingActivityEntry()`, dan `deleteActivityEntry()`
 
 Logika penting:
 
@@ -162,6 +162,8 @@ Logika penting:
 - daftar karyawan dibatasi ke kelompok `TEAMWORK` aktif,
 - `saveDailyActivityEntry()` menolak jika pekerjaan poin tidak cocok dengan divisi aktual harian,
 - `TwPerformanceClient` menyimpan draft belum terkirim di `sessionStorage` per `employeeId`; draft dihapus setelah `batchSubmitDraft()`/`appendToPendingDraft()` sukses,
+- `appendToPendingDraft()` menambahkan draft personal ke server tanpa langsung submit, lalu draft tersebut bisa dilihat/dikelola pada history/draft flow,
+- `updatePendingActivityEntry()` dan `deleteActivityEntry()` mendukung koreksi activity yang masih berada pada state yang diizinkan,
 - only status `DRAFT`, `DITOLAK_SPV`, `REVISI_TW` yang masih bisa diubah,
 - approval menghormati scope divisi SPV,
 - generate monthly menghapus hasil periode lama lalu menulis ulang seluruh employee TEAMWORK aktif.
@@ -205,6 +207,7 @@ Logika penting:
 - hanya status `DISETUJUI_SPV`, `OVERRIDE_HRD`, `DIKUNCI_PAYROLL` yang dihitung ke monthly performance.
 - SPV/KABAG hanya boleh approve/reject aktivitas divisinya.
 - route `/teamperformance` dipakai untuk tampilan performa tim/self-service TEAMWORK.
+- draft/history performance yang belum masuk payroll tetap harus menghormati status workflow; perubahan setelah payroll locked hanya lewat mekanisme koreksi yang disetujui.
 
 ## 6. Data yang Dibaca dan Ditulis
 
@@ -228,7 +231,7 @@ Logika penting:
 - pekerjaan poin beda divisi dengan `actualDivisionId` → ditolak.
 - draft TW yang belum dikirim akan pulih setelah refresh/pindah menu selama browser tab/session yang sama masih menyimpan `sessionStorage`.
 - activity yang sudah diajukan/disetujui tidak bisa diedit.
-- hanya activity `DRAFT` yang boleh dihapus.
+- activity yang boleh dihapus saat ini `DRAFT`, `DIAJUKAN`, dan `DIAJUKAN_ULANG`; jangan membuka delete untuk status approved/locked/payroll tanpa business decision baru.
 - jika employee tidak punya assignment scheduler di periode itu, target days menjadi `0`.
 
 ## 8. Hal yang Perlu Diperhatikan Developer

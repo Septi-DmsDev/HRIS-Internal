@@ -4,7 +4,7 @@ Use this file as the root instruction for Codex or any coding agent working in t
 
 ## Project Identity
 
-This is an internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Drizzle ORM, Supabase Auth, and PostgreSQL. The codebase currently covers employee profiling, placement/mutation helpers, master data, role access, performance points, manual and ADMS/fingerprint attendance, employee review, ticketing for leave/sick/permission, ticket approval queue, training evaluation, overtime, payroll lifecycle, finance summary, and exports (employee/payroll XLSX + payslip PDF).
+This is an internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Drizzle ORM, Supabase Auth, and PostgreSQL. The codebase currently covers employee profiling, placement/mutation helpers, master data, role access, performance points, manual and ADMS/fingerprint attendance, employee review, ticketing for leave/sick/permission, ticket approval queue, training evaluation, overtime, payroll lifecycle, finance summary, and exports (employee/payroll XLSX, payroll rekap XLSX, payslip PDF, and bulk slips PDF).
 
 ## Required Reading
 
@@ -79,12 +79,12 @@ Primary boundaries:
 - Auth and user role management: `/login`, `/users`
 - Operational dashboard: `/dashboard`
 - Employee profiling: `/employees`, `/employees/[id]`
-- Master data: `/master/branches`, `/master/divisions`, `/master/positions`, `/master/grades`, `/master/work-schedules`
+- Master data: `/master/branches`, `/master/divisions`, `/master/positions`, `/master/employee-groups`, `/master/grades`, `/master/work-schedules`, `/master/catalogpoin`
 - Performance: `/performance`, `/performance/training`
 - SPV/KABAG queue helpers and personal TW performance helpers in `src/server/actions/performance.ts`
 - Ticketing: `/tickets`
 - Ticket approval queue: `/ticketingapproval`
-- Manual and ADMS/fingerprint attendance: `/absensi`, `/api/integrations/adms/attendance`, `/api/integrations/adms/taps`, `/api/integrations/adms/employees`
+- Manual and ADMS/fingerprint attendance: `/absensi`, `POST /api/integrations/adms/attendance`, `POST /api/integrations/adms/taps`, `GET /api/integrations/adms/employees`
 - Overtime request and approval: `/overtime`
 - Review and incident: `/reviews`
 - History audit: `/history`

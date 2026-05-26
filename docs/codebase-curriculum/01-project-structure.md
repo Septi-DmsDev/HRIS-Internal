@@ -88,9 +88,10 @@ Route handler aktif:
 | `src/app/(dashboard)/payroll/[periodId]/slips.pdf/route.ts` | export bulk slips PDF |
 | `src/app/(dashboard)/payroll/[periodId]/[employeeId]/payslip.pdf/route.ts` | payslip PDF |
 | `src/app/(dashboard)/employees/export.xlsx/route.ts` | export data karyawan XLSX |
+| `src/app/(dashboard)/master/catalogpoin/export.xlsx/route.ts` | export katalog poin XLSX |
 | `src/app/api/integrations/adms/attendance/route.ts` | ingest rekap absensi dari mesin ADMS/fingerprint |
 | `src/app/api/integrations/adms/taps/route.ts` | ingest raw taps dari mesin ADMS/fingerprint dan klasifikasi tap |
-| `src/app/api/integrations/adms/employees/route.ts` | sinkronisasi employee/device mapping ADMS |
+| `src/app/api/integrations/adms/employees/route.ts` | expose mapping employee aktif untuk server ADMS |
 
 ## 5. Struktur `src/lib`
 

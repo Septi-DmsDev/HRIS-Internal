@@ -33,22 +33,33 @@ Catatan:
 
 | File test | Fokus |
 |---|---|
+| `src/components/layout/header-title.test.ts` | resolver title header route |
 | `src/config/constants.test.ts` | resolver target poin divisi, gaji/bonus constants |
+| `src/lib/db/errors.test.ts` | helper normalisasi error database |
+| `src/lib/employee-groups.test.ts` | normalisasi dan mapping kelompok karyawan |
 | `src/lib/permissions/index.test.ts` | permission matrix per role |
+| `src/lib/validations/attendance.test.ts` | validasi payload absensi/manual/ADMS |
 | `src/lib/validations/employee.test.ts` | validasi employee dan work schedule |
+| `src/lib/validations/hr.test.ts` | validasi ticket/review/attendance HR |
 | `src/lib/validations/payroll.test.ts` | validasi salary config dan KPI managerial |
 | `src/server/actions/payroll.helpers.test.ts` | personal payroll detail access |
 | `src/server/point-engine/parse-master-point-workbook.test.ts` | parser workbook poin |
+| `src/server/point-engine/count-assigned-days-for-period.test.ts` | hitung hari aktif dari assignment scheduler |
 | `src/server/point-engine/count-target-days-for-period.test.ts` | hitung target days |
 | `src/server/point-engine/calculate-monthly-point-performance.test.ts` | hitung performa bulanan |
 | `src/server/ticketing-engine/resolve-leave-quota-eligibility.test.ts` | eligibility leave quota berbasis quarter |
+| `src/server/review-engine/resolve-incident-delete-access.test.ts` | scope hapus incident |
 | `src/server/review-engine/resolve-reviewer-employee-id.test.ts` | reviewer employee id helper |
+| `src/server/attendance-engine/classify-taps.test.ts` | klasifikasi raw taps ADMS |
 | `src/server/attendance-engine/resolve-attendance-payroll-eligibility.test.ts` | eligibility bonus fulltime/disiplin dari absensi |
 | `src/server/attendance-engine/resolve-attendance-punctuality.test.ts` | punctuality resolver untuk absensi manual/fingerprint |
 | `src/server/payroll-engine/resolve-payroll-period.test.ts` | periode payroll 26-25 |
 | `src/server/payroll-engine/resolve-bonus-level.test.ts` | level bonus kinerja/prestasi |
 | `src/server/payroll-engine/calculate-teamwork-payroll.test.ts` | payroll TEAMWORK |
 | `src/server/payroll-engine/calculate-managerial-payroll.test.ts` | payroll MANAGERIAL |
+| `src/server/payroll-engine/resolve-discipline-bonus.test.ts` | gate bonus disiplin dari absensi/performa |
+| `src/server/payroll-engine/resolve-sp-performance-penalty.test.ts` | penalty SP1/SP2 ke performa |
+| `src/server/payroll-engine/resolve-tenure-allowance.test.ts` | tunjangan masa kerja quarter anchor |
 | `src/server/payroll-engine/build-payroll-export-rows.test.ts` | format export Excel |
 | `src/server/payroll-engine/build-payslip-breakdown.test.ts` | grouping addition/deduction slip |
 | `src/server/payroll-engine/resolve-payroll-status-transition.test.ts` | aturan paid/lock |
@@ -63,6 +74,7 @@ Catatan:
 - target default `13.000`;
 - override `OFFSET` ke `39.000`;
 - target day dari assignment tunggal dan assignment berganti;
+- target day dari assignment scheduler aktif/non-OFF;
 - persentase bulanan dari target vs approved point;
 - normalisasi workbook poin.
 
@@ -85,8 +97,11 @@ Catatan:
 - access detail payroll pribadi;
 - employee-linked payroll detail access state;
 - reviewer employee id helper;
+- incident delete access helper;
 - leave quota quarter eligibility;
+- raw tap classifier ADMS;
 - attendance eligibility untuk bonus fulltime/disiplin;
+- discipline bonus, SP performance penalty, dan tenure allowance quarter anchor;
 - overtime masih belum punya coverage test action end-to-end;
 - employee/work schedule validation;
 - nominal payroll tidak boleh negatif;

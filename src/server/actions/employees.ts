@@ -154,42 +154,22 @@ function oneDayBefore(date: Date) {
   return previousDay;
 }
 
-const BRANCH_EMPLOYEE_CODE_PREFIX: Record<string, string> = {
-  TEKNOS: "TKN",
-  WPI: "WPI",
-  MAHARATU: "MHR",
-};
-
-function resolveEmployeeCodePrefix(branchName: string | null | undefined) {
-  const normalized = branchName?.trim().toUpperCase();
-  if (!normalized) return "EMP";
-  return BRANCH_EMPLOYEE_CODE_PREFIX[normalized] ?? (normalized.replace(/[^A-Z]/g, "").slice(0, 3) || "EMP");
-}
-
-async function getNextGeneratedEmployeeCode(branchId: string) {
-  const [branch] = await db
-    .select({ name: branches.name })
-    .from(branches)
-    .where(eq(branches.id, branchId))
-    .limit(1);
-
-  const prefix = resolveEmployeeCodePrefix(branch?.name);
+async function getNextGeneratedEmployeeCode() {
   const rows = await db
     .select({ employeeCode: employees.employeeCode })
-    .from(employees)
-    .where(eq(employees.branchId, branchId));
+    .from(employees);
 
   let maxSequence = 0;
   for (const row of rows) {
     const value = row.employeeCode?.trim() ?? "";
-    if (!value.startsWith(`${prefix}-`)) continue;
-    const sequence = Number.parseInt(value.slice(prefix.length + 1), 10);
+    if (!/^\d{4}$/.test(value)) continue;
+    const sequence = Number.parseInt(value, 10);
     if (Number.isFinite(sequence) && sequence > maxSequence) {
       maxSequence = sequence;
     }
   }
 
-  return `${prefix}-${String(maxSequence + 1).padStart(4, "0")}`;
+  return String(maxSequence + 1).padStart(4, "0");
 }
 
 type EmployeePersistInput = Omit<EmployeeInput, "supervisorEmployeeId"> & {
@@ -831,8 +811,7 @@ export async function createEmployee(input: unknown) {
   const rawInput = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const branchId = typeof rawInput.branchId === "string" ? rawInput.branchId : "";
-    const nextUid = branchId ? await getNextGeneratedEmployeeCode(branchId) : "EMP-0001";
+    const nextUid = await getNextGeneratedEmployeeCode();
     const parsed = employeeSchema.safeParse({
       ...rawInput,
       employeeCode: nextUid,
@@ -1173,6 +1152,9 @@ export async function updateEmployee(id: string, input: unknown) {
   const parsed = employeeSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Input karyawan tidak valid." };
+  }
+  if (parsed.data.employmentStatus === "RESIGN" && !parsed.data.effectiveDate) {
+    return { error: "Tanggal resign wajib diisi saat status karyawan RESIGN." };
   }
 
   let shouldRevokeAccess = false;

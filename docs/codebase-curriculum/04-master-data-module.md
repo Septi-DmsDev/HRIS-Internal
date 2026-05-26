@@ -26,13 +26,14 @@ Tanpa modul ini, employee profiling, performance, training, dan payroll tidak bi
 |---|---|---|---|
 | `src/lib/db/schema/master.ts` | tabel branch/division/position/grade/employee group | employee, performance, training, payroll | schema inti master |
 | `src/lib/db/schema/employee.ts` | `workSchedules`, `workShiftMasters`, `workScheduleDays` | employee, performance, absensi, payroll | jadwal kerja diletakkan di schema employee |
-| `src/lib/validations/master.ts` | validasi branch/division/position/grade | action master | pakai Zod |
+| `src/lib/validations/master.ts` | validasi branch/division/position/grade/employee-group config | action master | pakai Zod |
 | `src/lib/validations/employee.ts` | validasi work schedule | action work schedule | 7 hari unik wajib |
 | `src/server/actions/branches.ts` | CRUD cabang | UI master cabang | role HRD/SUPER_ADMIN |
 | `src/server/actions/divisions.ts` | CRUD divisi | UI master divisi | ada `trainingPassPercent` |
 | `src/server/actions/positions.ts` | CRUD jabatan | UI master jabatan | ada `employeeGroup` |
 | `src/server/actions/employee-group-configs.ts` | konfigurasi kelompok karyawan | UI master employee groups | untuk aturan turunan role/group |
 | `src/server/actions/grades.ts` | CRUD grade | UI master grade | kode unik |
+| `src/server/actions/payroll.ts` | `upsertGradeCompensationConfig()` | UI finance | nominal tunjangan/bonus per grade |
 | `src/server/actions/work-schedules.ts` | CRUD jadwal kerja + hari | UI jadwal kerja | pakai transaction |
 | `src/app/(dashboard)/master/branches/*` | page + table cabang | user HRD/admin | pola CRUD table |
 | `src/app/(dashboard)/master/divisions/*` | page + table divisi | user HRD/admin | pola CRUD table |
@@ -65,15 +66,16 @@ Fungsi utama:
 mendefinisikan tabel master utama.
 
 Export utama:
-`branches`, `divisions`, `positions`, `grades`, `employeeGroupEnum`
+`branches`, `divisions`, `positions`, `grades`, `employeeGroupConfigs`, `employeeGroupEnum`
 
 Logika penting:
 
+- `branches` dapat menyimpan koordinat dan radius absensi (`latitude`, `longitude`, `maxAttendanceRadiusMeters`) untuk kebutuhan attendance/geofence.
 - `divisions.code`, `positions.code`, `grades.code` harus unik.
 - `divisions.trainingPassPercent` default `80`.
 - `divisions.dailyPointTarget` menjadi sumber target poin harian yang ditampilkan di `/schedule`, dashboard poin, dan dipakai generator performa bulanan.
 - Target poin bulanan dihitung dari `divisions.dailyPointTarget` dikali jumlah tanggal aktif/non-OFF di scheduler.
-- `positions.employeeGroup` memaksa jabatan dikaitkan ke `MANAGERIAL` atau `TEAMWORK`.
+- `positions.employeeGroup` mengaitkan jabatan ke enum kelompok karyawan aktif (`KARYAWAN_TETAP`, `MITRA_KERJA`, `BORONGAN`, `TRAINING`, dan legacy `MANAGERIAL`/`TEAMWORK`).
 - `workShiftMasters` menyimpan toleransi check-in/break/check-out untuk absensi.
 - `employee-group-configs` menjadi pengaturan tambahan untuk label/aturan kelompok karyawan, bukan pengganti enum group inti.
 
@@ -118,7 +120,7 @@ Fungsi utama:
 CRUD grade.
 
 Catatan:
-grade dipakai sebagai referensi pada profil karyawan dan snapshot payroll, tetapi nominal payroll belum diturunkan otomatis dari grade.
+grade dipakai sebagai referensi pada profil karyawan dan snapshot payroll. Nominal tunjangan/bonus per grade disimpan terpisah di `grade_compensation_configs` dan dikelola dari finance/payroll melalui `upsertGradeCompensationConfig()`, bukan dari page CRUD grade murni.
 
 ### `src/server/actions/work-schedules.ts`
 
@@ -163,7 +165,7 @@ Logika penting:
 - kode division/position/grade harus unik.
 - jadwal kerja harus berisi tepat 7 hari unik.
 - untuk hari kerja, jam masuk dan jam pulang wajib lengkap.
-- jam pulang harus lebih besar daripada jam masuk.
+- jam pulang tidak boleh sama dengan jam masuk; shift malam lintas hari didukung lewat master shift/flag overnight.
 - jadwal yang masih dipakai karyawan tidak boleh dihapus.
 - divisi menyimpan `trainingPassPercent` yang akan dipakai training evaluation.
 - divisi menyimpan `dailyPointTarget`; jadwal harian tim menentukan tanggal aktif/non-OFF dan jam shift, sedangkan nominal target harian mengikuti setting master divisi.
@@ -177,6 +179,9 @@ Logika penting:
 | `divisions` | ya | ya | master divisi |
 | `positions` | ya | ya | master jabatan |
 | `grades` | ya | ya | master grade |
+| `employee_group_configs` | ya | ya | konfigurasi label/payroll mode kelompok karyawan |
+| `grade_compensation_configs` | ya | ya lewat payroll action | nominal tunjangan/bonus per grade |
+| `work_shift_masters` | ya | ya | master shift dan toleransi absensi |
 | `work_schedules` | ya | ya | template jadwal kerja |
 | `work_schedule_days` | ya | ya | detail 7 hari per jadwal |
 | `employee_schedule_assignments` | tidak langsung di modul ini | tidak | hanya dicek implisit saat delete jadwal |

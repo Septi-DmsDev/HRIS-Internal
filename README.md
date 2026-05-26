@@ -5,15 +5,16 @@ Internal HRIS/HRD Dashboard built with Next.js App Router, TypeScript, Supabase 
 ## What This App Covers
 
 - Auth, user roles, employee login links, and division-scoped access.
-- Employee profiling, histories, branches, divisions, positions, grades, work schedules, and shift masters.
-- TEAMWORK performance point catalog, daily activities, approval workflow, and monthly performance.
+- Employee profiling, employee export, histories, placement/mutation helpers, branches, divisions, positions, grades, employee-group configs, work schedules, and shift masters.
+- TEAMWORK performance point catalog, daily activities, draft/history workflow, approval workflow, team performance view, and monthly performance.
 - Input persentase performa bulanan managerial (KABAG/SPV/MANAGERIAL) dari menu `/performance` oleh HRD/SUPER_ADMIN.
 - Manual attendance input on `/absensi` for payroll fulltime/discipline eligibility.
-- ADMS/fingerprint ingest APIs on `/api/integrations/adms/attendance`, `/api/integrations/adms/taps`, and `/api/integrations/adms/employees` (server-to-server).
-- Ticketing for leave/sick/permission, SPV/KABAG scoped review queue, HRD/SUPER_ADMIN final approval, and leave quota handling.
+- ADMS/fingerprint APIs: `POST /api/integrations/adms/attendance`, `POST /api/integrations/adms/taps`, and `GET /api/integrations/adms/employees` (server-to-server).
+- Ticketing for leave/sick/permission, SPV/KABAG scoped review queue on `/ticketingapproval`, HRD/SUPER_ADMIN final approval, leave quota handling, and schedule OFF sync for full-day approved tickets.
 - Employee review, incident log, and training evaluation.
-- Payroll period 26-25, snapshots, preview, finalization, paid/locked lifecycle, structured adjustments, overtime, payslip PDF, XLSX export, and finance summary.
-- Personal self-service pages for linked employee accounts.
+- Overtime requests, patch absence overtime, draft overtime entries, approval, and payroll integration.
+- Payroll period 26-25, snapshots, preview, finalization, paid/locked lifecycle, structured adjustments, overtime, payslip PDF, bulk slips PDF, XLSX export/rekap, and finance summary.
+- Personal self-service pages for linked employee accounts: dashboard, settings, schedule, tickets, overtime, performance, and payroll detail.
 
 ## Tech Stack
 

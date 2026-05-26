@@ -5,7 +5,7 @@
 **Disusun oleh:** AI Project Concept Architect  
 **Basis pembahasan:** Diskusi konsep Manajemen Poin Kinerja, Profiling Karyawan, Review Karyawan, Ticketing Izin/Sakit/Cuti, dan Payroll System.
 
-> Catatan penyelarasan code 2026-05-22: dokumen ini adalah konsep bisnis; untuk status implementasi aktual gunakan kurikulum codebase terbaru.
+> Catatan penyelarasan code 2026-05-25: dokumen ini adalah konsep bisnis; untuk status implementasi aktual gunakan kurikulum codebase terbaru.
 
 ---
 

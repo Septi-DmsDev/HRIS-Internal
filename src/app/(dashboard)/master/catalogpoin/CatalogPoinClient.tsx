@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/tables/DataTable";
 import { formatPointNumber } from "@/lib/format/number";
@@ -223,43 +224,51 @@ export default function CatalogPoinClient({
           searchKey="workName"
           searchPlaceholder="Cari nama pekerjaan..."
           toolbarSlot={
-            canManageCatalog ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    resetMessages();
-                    setEntryDraft(createEntryDraft());
-                    setEntryOpen(true);
-                  }}
-                >
-                  + Tambah Entry
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    resetMessages();
-                    setXlsxFile(null);
-                    setXlsxOpen(true);
-                  }}
-                >
-                  Import .xlsx
-                </Button>
-                {role === "SUPER_ADMIN" ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" asChild>
+                <a href="/master/catalogpoin/export.xlsx">
+                  <Download size={16} />
+                  Export .xlsx
+                </a>
+              </Button>
+              {canManageCatalog ? (
+                <>
                   <Button
                     type="button"
-                    variant="destructive"
                     onClick={() => {
                       resetMessages();
-                      setClearCatalogOpen(true);
+                      setEntryDraft(createEntryDraft());
+                      setEntryOpen(true);
                     }}
                   >
-                    Hapus Semua Katalog
+                    + Tambah Entry
                   </Button>
-                ) : null}
-              </div>
-            ) : undefined
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetMessages();
+                      setXlsxFile(null);
+                      setXlsxOpen(true);
+                    }}
+                  >
+                    Import .xlsx
+                  </Button>
+                  {role === "SUPER_ADMIN" ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        resetMessages();
+                        setClearCatalogOpen(true);
+                      }}
+                    >
+                      Hapus Semua Katalog
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
           }
         />
       </div>

@@ -24,10 +24,13 @@ Modul ini menyimpan profil karyawan yang menjadi fondasi semua modul lain. Bukan
 |---|---|---|---|
 | `src/lib/db/schema/employee.ts` | tabel profil, histori, dan assignment jadwal | semua modul | schema inti karyawan |
 | `src/lib/validations/employee.ts` | validasi form employee dan work schedule | action employee | supervisor TEAMWORK wajib |
-| `src/server/actions/employees.ts` | list, options, detail, create, update, delete | page employee | action terbesar kedua setelah payroll |
+| `src/server/actions/employees.ts` | list, options, detail, import/export, create, update, BPJS toggle, bulk placement, access sync, delete | page employee/positioning/export | action terbesar kedua setelah payroll |
 | `src/app/(dashboard)/employees/page.tsx` | page daftar karyawan | HRD/SPV/Finance/Admin | mempersiapkan row table |
+| `src/app/(dashboard)/employees/export.xlsx/route.ts` | route export XLSX karyawan | HRD/Admin/role baca employee | memakai `getEmployeesForExport()` |
 | `src/app/(dashboard)/employees/EmployeesTable.tsx` | tabel CRUD employee | user internal | form besar ada di sini |
 | `src/app/(dashboard)/employees/[id]/page.tsx` | detail employee + histori | user internal | bacaan terbaik untuk memahami data employee |
+| `src/app/(dashboard)/positioning/*` | mutasi massal cabang/divisi/jabatan/grade/kelompok | HRD/SUPER_ADMIN | memakai `bulkUpdateEmployeeOrganization()` |
+| `src/app/(dashboard)/divisi/page.tsx` | route kompatibilitas lama | user internal | redirect ke `/positioning` |
 | `src/server/actions/work-schedules.ts` | daftar schedule aktif | form employee | dipakai sebagai opsi jadwal |
 
 ## 3. Alur Kerja Modul
@@ -70,16 +73,20 @@ Fungsi utama:
 menjadi pusat semua operasi employee.
 
 Export utama:
-`getEmployees()`, `getEmployeeFormOptions()`, `getEmployeeById()`, `createEmployee()`, `updateEmployee()`, `deleteEmployee()`
+`getEmployees()`, `getEmployeesForExport()`, `getDivisionManagementOptions()`, `getEmployeeFormOptions()`, `getEmployeeById()`, `createEmployee()`, `importEmployeesFromXlsx()`, `updateEmployee()`, `toggleEmployeeBpjs()`, `bulkUpdateEmployeeOrganization()`, `deleteEmployeePositionHistory()`, `deleteEmployeeDivisionHistory()`, `deleteEmployeeGradeHistory()`, `deleteEmployee()`, dan beberapa utility akses karyawan untuk `SUPER_ADMIN`.
 
 Logika penting:
 
 - `getEmployees()` membatasi data SPV/KABAG berdasarkan `divisionIds`,
 - `getEmployeeFormOptions()` mengumpulkan master option aktif untuk form,
+- `getEmployeesForExport()` menjadi sumber route export XLSX karyawan,
+- `getDivisionManagementOptions()` dan `bulkUpdateEmployeeOrganization()` dipakai route `/positioning` untuk mutasi massal struktur organisasi,
 - `getEmployeeById()` mengembalikan profil lengkap plus histori dan schedule history,
 - `createEmployee()` selalu menulis histori awal untuk divisi, jabatan, grade, supervisor, dan status,
+- `importEmployeesFromXlsx()` mengimpor data karyawan dari workbook dengan validasi master,
 - `updateEmployee()` hanya menambah histori ketika field benar-benar berubah,
 - saat schedule berubah, assignment aktif lama ditutup dengan `effectiveEndDate = oneDayBefore(effectiveDate)`.
+- utility akses seperti `createMissingEmployeeAccounts()`, `revokeResignedEmployeesAccess()`, `syncEmployeeRoles()`, dan `regenerateEmployeeUidsAndResetLogins()` adalah operasi admin sensitif dan dibatasi role.
 
 Risiko/catatan:
 
@@ -124,6 +131,7 @@ Logika penting:
 - `trainingGraduationDate` tidak boleh lebih awal dari `startDate`.
 - create employee harus menulis histori awal.
 - update employee harus menulis histori hanya bila ada perubahan.
+- bulk placement harus menulis histori sesuai field yang berubah.
 - perubahan jadwal kerja memakai tanggal efektif.
 
 ## 6. Data yang Dibaca dan Ditulis
@@ -142,6 +150,7 @@ Logika penting:
 | `employee_supervisor_histories` | ya | ya | histori supervisor |
 | `employee_status_histories` | ya | ya | histori status |
 | `employee_schedule_assignments` | ya | ya | histori jadwal kerja |
+| `user_roles` | ya | ya untuk utility akses | employee-linked login dan sync role |
 
 ## 7. Edge Case
 

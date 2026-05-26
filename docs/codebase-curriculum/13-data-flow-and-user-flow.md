@@ -243,7 +243,9 @@ ticket/overtime dibuat
 
 ```text
 HRD/Admin input absensi manual di /absensi
-→ record masuk employee_attendance_records source MANUAL
+atau server ADMS kirim batch attendance/raw taps
+→ record masuk employee_attendance_records source MANUAL/FINGERPRINT_ADMS
+→ record MANUAL tidak ditimpa oleh batch ADMS
 → payroll preview membaca record dalam periode 26-25
 → tanpa data absensi, bonus fulltime dan disiplin bernilai 0
 → jika semua hari kerja HADIR, fulltime eligible

@@ -36,6 +36,7 @@ export type EmployeeRow = {
   employeeCode: string;
   nik: string | null;
   fullName: string;
+  employmentStatus: "TRAINING" | "REGULER" | "DIALIHKAN_TRAINING" | "TIDAK_LOLOS" | "NONAKTIF" | "RESIGN";
   phoneNumber: string;
   bpjsKetenagakerjaanNumber: string | null;
   bpjsKetenagakerjaanActive: boolean;
@@ -76,6 +77,8 @@ type EmployeeDraft = {
   scheduleId: string;
   effectiveDate: string;
   isActive: boolean;
+  employeeStatus: "AKTIF" | "RESIGN";
+  resignDate: string;
 };
 
 const GENDER_OPTIONS = ["LAKI-LAKI", "PEREMPUAN"] as const;
@@ -163,6 +166,8 @@ function createEmptyDraft(options: EmployeeFormOptions): EmployeeDraft {
     scheduleId: "",
     effectiveDate: today,
     isActive: true,
+    employeeStatus: "AKTIF",
+    resignDate: "",
   };
 }
 
@@ -202,10 +207,27 @@ function createDraftFromEmployee(detail: NonNullable<EmployeeDetailResult>, logi
     scheduleId: currentScheduleAssignment?.scheduleId ?? "",
     effectiveDate: today,
     isActive: employee.isActive,
+    employeeStatus: employee.employmentStatus === "RESIGN" || !employee.isActive ? "RESIGN" : "AKTIF",
+    resignDate: "",
   };
 }
 
 function toActionInput(draft: EmployeeDraft) {
+  const isResign = draft.employeeStatus === "RESIGN";
+  const resolvedEmploymentStatus: EmployeeDraft["employmentStatus"] =
+    isResign
+      ? "RESIGN"
+      : draft.employmentStatus === "RESIGN"
+        ? "REGULER"
+        : draft.employmentStatus;
+  const resolvedPayrollStatus: EmployeeDraft["payrollStatus"] =
+    isResign
+      ? "NONAKTIF"
+      : draft.payrollStatus === "NONAKTIF"
+        ? "REGULER"
+        : draft.payrollStatus;
+  const resolvedEffectiveDate = isResign ? (draft.resignDate || draft.effectiveDate) : draft.effectiveDate;
+
   return {
     employeeCode: draft.employeeCode,
     nik: draft.nik,
@@ -227,13 +249,13 @@ function toActionInput(draft: EmployeeDraft) {
     positionId: draft.positionId,
     gradeId: draft.gradeId,
     employeeGroup: draft.employeeGroup,
-    employmentStatus: draft.employmentStatus,
-    payrollStatus: draft.payrollStatus,
+    employmentStatus: resolvedEmploymentStatus,
+    payrollStatus: resolvedPayrollStatus,
     supervisorEmployeeId: draft.supervisorEmployeeId,
     scheduleId: draft.scheduleId,
     trainingGraduationDate: draft.trainingGraduationDate,
-    effectiveDate: draft.effectiveDate,
-    isActive: draft.isActive,
+    effectiveDate: resolvedEffectiveDate,
+    isActive: isResign ? false : true,
   };
 }
 
@@ -288,6 +310,19 @@ function EmployeePersonalForm({
       <Field label="NO BPJS KS"><Input value={draft.bpjsKesehatanNumber} onChange={(e) => onChange("bpjsKesehatanNumber", e.target.value)} maxLength={50} /></Field>
       <Field label="MASUK KERJA"><Input type="date" value={draft.startDate} onChange={(e) => onChange("startDate", e.target.value)} /></Field>
       <Field label="LOLOS TRAINING"><Input type="date" value={draft.trainingGraduationDate} onChange={(e) => onChange("trainingGraduationDate", e.target.value)} /></Field>
+      {isEditMode ? (
+        <Field label="STATUS KARYAWAN">
+          <select value={draft.employeeStatus} onChange={(e) => onChange("employeeStatus", e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <option value="AKTIF">AKTIF</option>
+            <option value="RESIGN">RESIGN</option>
+          </select>
+        </Field>
+      ) : null}
+      {isEditMode && draft.employeeStatus === "RESIGN" ? (
+        <Field label="TGL RESIGN">
+          <Input type="date" value={draft.resignDate} onChange={(e) => onChange("resignDate", e.target.value)} />
+        </Field>
+      ) : null}
       <div className="space-y-2 md:col-span-2"><label className="text-sm font-medium text-slate-700">ALAMAT</label><textarea value={draft.address} onChange={(e) => onChange("address", e.target.value)} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
     </div>
   );
@@ -328,6 +363,7 @@ export default function EmployeesTable({ data, options }: { data: EmployeeRow[];
       setPending(false);
     }
   }
+
 
   function onDraftChange(field: keyof EmployeeDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -406,7 +442,7 @@ export default function EmployeesTable({ data, options }: { data: EmployeeRow[];
       }
 
       const loginEmail = toLoginEmail(draft.username, draft.email);
-      if (loginEmail) {
+      if (draft.employeeStatus !== "RESIGN" && loginEmail) {
         const loginResult = await upsertEmployeeLogin({ employeeId: editingRow.id, email: loginEmail, password: draft.password || undefined });
         if (loginResult?.error) {
           setFormError(loginResult.error);
@@ -482,7 +518,14 @@ export default function EmployeesTable({ data, options }: { data: EmployeeRow[];
     {
       header: "NAMA",
       accessorKey: "fullName",
-      cell: ({ row }) => <Link href={`/employees/${row.original.id}`} className="font-medium text-slate-900 hover:underline">{row.original.fullName}</Link>,
+      cell: ({ row }) => (
+        <Link
+          href={`/employees/${row.original.id}`}
+          className={`font-medium hover:underline ${row.original.employmentStatus === "RESIGN" ? "text-red-600" : "text-slate-900"}`}
+        >
+          {row.original.fullName}
+        </Link>
+      ),
     },
     { header: "NO TELPON", accessorKey: "phoneNumber" },
     { header: "MASUK KERJA", accessorKey: "startDate" },

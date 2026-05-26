@@ -4,7 +4,9 @@ import DivisionManagementTable, { type DivisionEmployeeRow, type DivisionManagem
 export default async function DivisiPage() {
   const [employees, options] = await Promise.all([getEmployees(), getDivisionManagementOptions()]);
 
-  const rows: DivisionEmployeeRow[] = employees.map((employee) => ({
+  const rows: DivisionEmployeeRow[] = employees
+    .filter((employee) => employee.employmentStatus !== "RESIGN")
+    .map((employee) => ({
     id: employee.id,
     employeeCode: employee.employeeCode,
     fullName: employee.fullName,
