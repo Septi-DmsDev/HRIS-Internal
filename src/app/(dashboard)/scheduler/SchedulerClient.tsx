@@ -58,6 +58,8 @@ type Props = {
   periodStart: string;
   periodEnd: string;
   assignmentRanges: ScheduleAssignmentRange[];
+  selectedYear: number;
+  selectedMonth: number;
   canBulkAssign?: boolean;
 };
 
@@ -188,6 +190,8 @@ export default function SchedulerClient({
   periodStart,
   periodEnd,
   assignmentRanges,
+  selectedYear,
+  selectedMonth,
   canBulkAssign = false,
 }: Props) {
   const router = useRouter();
@@ -235,6 +239,22 @@ export default function SchedulerClient({
   const [scheduleDetailError, setScheduleDetailError] = useState<string | null>(null);
   const [scheduleDetail, setScheduleDetail] = useState<MyScheduleResult | null>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const MONTH_NAMES = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  ];
+  let prevYear = selectedYear;
+  let prevMonth = selectedMonth - 1;
+  if (prevMonth < 1) {
+    prevMonth = 12;
+    prevYear -= 1;
+  }
+  let nextYear = selectedYear;
+  let nextMonth = selectedMonth + 1;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
 
   const scheduleOptionMap = useMemo(
     () => new Map(scheduleOptions.map((option) => [option.id, option] as const)),
@@ -498,7 +518,7 @@ export default function SchedulerClient({
 
     startTransition(async () => {
       try {
-        const result = await getEmployeeScheduleDetail(member.employeeId);
+        const result = await getEmployeeScheduleDetail(member.employeeId, selectedYear, selectedMonth);
         if (!result) {
           setScheduleDetailError("Jadwal karyawan tidak ditemukan.");
           setScheduleDetailLoading(false);
@@ -715,6 +735,29 @@ export default function SchedulerClient({
   return (
     <>
       <>
+          <div className="mb-2 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between gap-3">
+              <a
+                href={`/scheduler?year=${prevYear}&month=${prevMonth}`}
+                className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Bulan Sebelumnya
+              </a>
+              <div className="text-center">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Periode ditampilkan</p>
+                <p className="text-sm font-bold text-slate-900">
+                  {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                </p>
+                <p className="text-xs text-slate-500">{formatDateDisplay(periodStart)} - {formatDateDisplay(periodEnd)}</p>
+              </div>
+              <a
+                href={`/scheduler?year=${nextYear}&month=${nextMonth}`}
+                className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Bulan Berikutnya
+              </a>
+            </div>
+          </div>
           <div className="space-y-2 mb-2">
               <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div>

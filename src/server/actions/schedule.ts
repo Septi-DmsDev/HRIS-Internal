@@ -923,6 +923,19 @@ export async function getScheduleManagementWorkspace(): Promise<{
   periodEnd: string;
   assignmentRanges: ScheduleAssignmentRange[];
 }> {
+  return getScheduleManagementWorkspaceByPeriod();
+}
+
+export async function getScheduleManagementWorkspaceByPeriod(
+  year?: number,
+  month?: number
+): Promise<{
+  teamMembers: TeamMember[];
+  scheduleOptions: ScheduleOption[];
+  periodStart: string;
+  periodEnd: string;
+  assignmentRanges: ScheduleAssignmentRange[];
+}> {
   await requireAuth();
 
   const [teamMembers, scheduleOptions] = await Promise.all([
@@ -930,7 +943,12 @@ export async function getScheduleManagementWorkspace(): Promise<{
     getScheduleOptions(),
   ]);
 
-  const { periodStart, periodEnd } = resolvePayrollPeriodWindow(new Date());
+  const now = new Date();
+  const defaultPeriod = resolveDefaultSchedulePeriodMonthYear(now);
+  const targetYear = year ?? defaultPeriod.year;
+  const targetMonth = month ?? defaultPeriod.month;
+  const periodStart = new Date(targetYear, targetMonth - 2, 26);
+  const periodEnd = new Date(targetYear, targetMonth - 1, 25);
   const employeeIds = teamMembers.map((member) => member.employeeId);
   let assignmentRanges: ScheduleAssignmentRange[] = [];
 
