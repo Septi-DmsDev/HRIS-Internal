@@ -205,7 +205,7 @@ export default function SchedulerClient({
     notes: "",
   });
   const [bulkForm, setBulkForm] = useState<BulkForm>({
-    scheduleId: "",
+    scheduleId: "__unselected__",
     effectiveStartDate: payrollPeriod.start,
     effectiveEndDate: payrollPeriod.end,
     notes: "",
@@ -222,7 +222,7 @@ export default function SchedulerClient({
   const [matrixStartDate, setMatrixStartDate] = useState(periodStart);
   const [matrixEndDate, setMatrixEndDate] = useState(periodEnd);
   const [matrixDate, setMatrixDate] = useState(periodStart);
-  const [matrixScheduleId, setMatrixScheduleId] = useState("");
+  const [matrixScheduleId, setMatrixScheduleId] = useState("__unselected__");
   const [matrixCellOverrides, setMatrixCellOverrides] = useState<Record<string, string>>({});
   const [matrixError, setMatrixError] = useState<string | null>(null);
   const [matrixSuccess, setMatrixSuccess] = useState<string | null>(null);
@@ -439,7 +439,7 @@ export default function SchedulerClient({
       setMatrixError("Pilih minimal satu karyawan.");
       return;
     }
-    if (!matrixScheduleId) {
+    if (matrixScheduleId === "__unselected__") {
       setMatrixError("Pilih shift untuk aksi massal.");
       return;
     }
@@ -451,7 +451,7 @@ export default function SchedulerClient({
     startTransition(async () => {
       const result = await assignEmployeeSchedulesBulk({
         employeeIds,
-        scheduleId: matrixScheduleId,
+        scheduleId: matrixScheduleId || null,
         effectiveStartDate: matrixStartDate,
         effectiveEndDate: matrixEndDate,
         notes: "Bulk matrix scheduler",
@@ -516,7 +516,7 @@ export default function SchedulerClient({
 
   function openBulkDialog() {
     setBulkForm({
-      scheduleId: "",
+      scheduleId: "__unselected__",
       effectiveStartDate: payrollPeriod.start,
       effectiveEndDate: payrollPeriod.end,
       notes: "",
@@ -579,7 +579,7 @@ export default function SchedulerClient({
     setBulkError(null);
     setBulkSuccess(false);
 
-    if (!bulkForm.scheduleId) {
+    if (bulkForm.scheduleId === "__unselected__") {
       setBulkError("Pilih master shift terlebih dahulu.");
       return;
     }
@@ -595,7 +595,7 @@ export default function SchedulerClient({
     startTransition(async () => {
       const result = await assignEmployeeSchedulesBulk({
         employeeIds: filteredTeamMembers.map((member) => member.employeeId),
-        scheduleId: bulkForm.scheduleId,
+        scheduleId: bulkForm.scheduleId || null,
         effectiveStartDate: bulkForm.effectiveStartDate,
         effectiveEndDate: bulkForm.effectiveEndDate,
         notes: bulkForm.notes || undefined,
@@ -779,7 +779,10 @@ export default function SchedulerClient({
                     getScheduleTheme(matrixScheduleId).bg
                   )}
                 >
-                  <option value="">Pilih shift massal</option>
+                  <option value="__unselected__">Pilih shift massal</option>
+                  <option value="" style={{ backgroundColor: OFF_SHIFT_THEME.optionBg, color: OFF_SHIFT_THEME.optionColor }}>
+                    OFF
+                  </option>
                   {scheduleOptions.map(renderShiftOption)}
                 </select>
                 <Button type="button" size="sm" className="h-8 bg-teal-600 hover:bg-teal-700 text-xs" onClick={() => void applySelectedByDate()}>
@@ -1141,12 +1144,15 @@ export default function SchedulerClient({
                 )}
                 required
               >
-                <option value="">— Pilih master shift —</option>
+                <option value="__unselected__">— Pilih master shift —</option>
+                <option value="" style={{ backgroundColor: OFF_SHIFT_THEME.optionBg, color: OFF_SHIFT_THEME.optionColor }}>
+                  OFF
+                </option>
                 {scheduleOptions.map(renderShiftNameOption)}
               </select>
-              {bulkForm.scheduleId ? (
+              {bulkForm.scheduleId !== "__unselected__" ? (
                 <Badge variant="outline" className={cn("font-mono", getScheduleTheme(bulkForm.scheduleId).badge)}>
-                  {scheduleOptionMap.get(bulkForm.scheduleId)?.code ?? "SHIFT"}
+                  {bulkForm.scheduleId ? scheduleOptionMap.get(bulkForm.scheduleId)?.code ?? "SHIFT" : "OFF"}
                 </Badge>
               ) : null}
             </div>

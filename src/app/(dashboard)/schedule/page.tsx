@@ -155,10 +155,15 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
   const params = await searchParams;
   const now = new Date();
-  const year = params.year ? parseInt(params.year, 10) : now.getFullYear();
-  const month = params.month ? parseInt(params.month, 10) : now.getMonth() + 1;
-  const safeYear = Number.isNaN(year) ? now.getFullYear() : year;
-  const safeMonth = Number.isNaN(month) || month < 1 || month > 12 ? now.getMonth() + 1 : month;
+  const defaultMonthDate = now.getDate() > 25
+    ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    : now;
+  const defaultYear = defaultMonthDate.getFullYear();
+  const defaultMonth = defaultMonthDate.getMonth() + 1;
+  const year = params.year ? parseInt(params.year, 10) : defaultYear;
+  const month = params.month ? parseInt(params.month, 10) : defaultMonth;
+  const safeYear = Number.isNaN(year) ? defaultYear : year;
+  const safeMonth = Number.isNaN(month) || month < 1 || month > 12 ? defaultMonth : month;
 
   const result = await getMySchedule(safeYear, safeMonth);
 

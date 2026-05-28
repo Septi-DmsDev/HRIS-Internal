@@ -312,6 +312,22 @@ async function resolveEmployeeDailyPointTarget(employeeId: string, periodStartDa
   return employeeRow?.dailyPointTarget ?? POINT_TARGET_HARIAN;
 }
 
+function resolveDefaultSchedulePeriodMonthYear(now: Date): { year: number; month: number } {
+  const today = startOfLocalDay(now);
+  if (today.getDate() > 25) {
+    const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return {
+      year: nextMonthDate.getFullYear(),
+      month: nextMonthDate.getMonth() + 1,
+    };
+  }
+
+  return {
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+  };
+}
+
 export async function getMySchedule(
   year?: number,
   month?: number
@@ -322,8 +338,9 @@ export async function getMySchedule(
   if (!roleRow.employeeId) return null;
 
   const now = new Date();
-  const targetYear = year ?? now.getFullYear();
-  const targetMonth = month ?? now.getMonth() + 1;
+  const defaultPeriod = resolveDefaultSchedulePeriodMonthYear(now);
+  const targetYear = year ?? defaultPeriod.year;
+  const targetMonth = month ?? defaultPeriod.month;
   const periodStart = new Date(targetYear, targetMonth - 2, 26);
   const periodEnd = new Date(targetYear, targetMonth - 1, 25);
   const today = startOfLocalDay(now);
@@ -514,8 +531,9 @@ export async function getEmployeeScheduleDetail(
   }
 
   const now = new Date();
-  const targetYear = year ?? now.getFullYear();
-  const targetMonth = month ?? now.getMonth() + 1;
+  const defaultPeriod = resolveDefaultSchedulePeriodMonthYear(now);
+  const targetYear = year ?? defaultPeriod.year;
+  const targetMonth = month ?? defaultPeriod.month;
   const periodStart = new Date(targetYear, targetMonth - 2, 26);
   const periodEnd = new Date(targetYear, targetMonth - 1, 25);
   const today = startOfLocalDay(now);
@@ -1229,7 +1247,7 @@ const BULK_ASSIGN_ALLOWED_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD", "SPV", "KAB
 
 const assignManySchema = z.object({
   employeeIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu karyawan."),
-  scheduleId: z.string().uuid(),
+  scheduleId: scheduleIdCellSchema,
   effectiveStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus yyyy-MM-dd"),
   effectiveEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus yyyy-MM-dd"),
   notes: z.string().optional(),
