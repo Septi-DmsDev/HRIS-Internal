@@ -328,6 +328,12 @@ type Props = {
   employeeId: string;
 };
 
+type ImportedJsonItem = {
+  jobId: string;
+  workName: string;
+  qty: number;
+};
+
 export default function TwPerformanceClient({ catalogEntries, activities, divisionName, employeeId }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -402,6 +408,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
   const [ocrPending, setOcrPending] = useState(false);
   const [ocrText, setOcrText] = useState("");
   const [ocrPreview, setOcrPreview] = useState<string | null>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
   const [ocrStreamOn, setOcrStreamOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -578,6 +585,110 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
     setDraftItems((prev) => prev.filter((item) => item.jobId !== jobId));
     setJobGroups((prev) => prev.filter((g) => g.jobId !== jobId));
     setActiveTab("submit");
+  }
+
+  function normalizeLooseString(value: unknown) {
+    if (typeof value !== "string") return "";
+    return value.trim();
+  }
+
+  function parsePerformanceJsonPayload(payload: unknown): ImportedJsonItem[] {
+    const asObject = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+    const rootCandidates = [
+      payload,
+      asObject?.items,
+      asObject?.data,
+      asObject?.records,
+      asObject?.activities,
+      asObject?.pencatatan_harian,
+    ];
+    const rawRows = rootCandidates.find((candidate) => Array.isArray(candidate));
+    if (!Array.isArray(rawRows)) {
+      throw new Error("Format JSON tidak valid. Gunakan array data aktivitas.");
+    }
+
+    const result: ImportedJsonItem[] = [];
+    rawRows.forEach((row, index) => {
+      if (!row || typeof row !== "object") return;
+      const item = row as Record<string, unknown>;
+      const jobId = normalizeJobId(
+        normalizeLooseString(
+          item.jobid ??
+            item.job_id ??
+            item.jobId ??
+            item.job_code ??
+            item.jobCode ??
+            item["job code"]
+        )
+      );
+      const workName = normalizeLooseString(
+        item.jenis_pekerjaan ?? item.jenisPekerjaan ?? item.work_name ?? item.workName ?? item.pekerjaan
+      );
+      const qtyRaw = item.qty ?? item.quantity ?? item.jumlah ?? item.QTY;
+      const qty = Number(qtyRaw);
+
+      if (!workName || !Number.isFinite(qty) || qty <= 0) {
+        throw new Error(`Baris ${index + 1} tidak valid. Wajib ada job code, jenis pekerjaan, dan qty > 0.`);
+      }
+      // Izinkan placeholder job id seperti "." dari export lama, fallback ke "-" agar tetap bisa submit.
+      const normalizedJobId = jobId && jobId !== "." ? jobId : "-";
+      result.push({ jobId: normalizedJobId, workName, qty });
+    });
+
+    if (result.length === 0) {
+      throw new Error("Tidak ada baris aktivitas valid di file JSON.");
+    }
+
+    return result;
+  }
+
+  async function handleUploadJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      setError("File harus berformat .json");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text) as unknown;
+      const importedItems = parsePerformanceJsonPayload(payload);
+      const catalogByWorkName = new Map(
+        catalogEntries.map((entry) => [entry.workName.trim().toLowerCase(), entry] as const)
+      );
+
+      const mappedDraftItems: DraftItem[] = [];
+      for (let i = 0; i < importedItems.length; i += 1) {
+        const row = importedItems[i];
+        const matched = catalogByWorkName.get(row.workName.trim().toLowerCase());
+        if (!matched) {
+          throw new Error(`Jenis pekerjaan "${row.workName}" tidak ditemukan di katalog aktif sistem.`);
+        }
+        mappedDraftItems.push({
+          key: `json-${Date.now()}-${i}`,
+          catalogEntryId: matched.id,
+          jobId: row.jobId,
+          workName: matched.workName,
+          pointValue: Number(matched.pointValue),
+          qty: row.qty,
+        });
+      }
+
+      setDraftItems((prev) => {
+        const merged = [...prev, ...mappedDraftItems];
+        setJobGroups((prevGroups) => normalizeJobGroups(prevGroups, merged));
+        return merged;
+      });
+      setCurrentJobId("");
+      setCurrentJobLines([]);
+      setError(null);
+      setSuccess(`Upload JSON berhasil: ${mappedDraftItems.length} baris aktivitas ditambahkan ke draft.`);
+      setActiveTab("submit");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal membaca JSON. Pastikan format berisi job code, jenis pekerjaan, dan qty.");
+    }
   }
 
   async function handleSubmit() {
@@ -1431,10 +1542,24 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
               Upload screenshot/foto atau gunakan kamera. Format yang terbaca: contoh <code>TT 6312</code>.
             </p>
             <div className="flex flex-wrap gap-2">
+              <input
+                ref={jsonInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={(e) => void handleUploadJson(e)}
+              />
               <label className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
                 <span>Upload Gambar</span>
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => void handleUploadImage(e)} />
               </label>
+              <Button
+                type="button"
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+                onClick={() => jsonInputRef.current?.click()}
+              >
+                Upload JSON
+              </Button>
               {!ocrStreamOn ? (
                 <Button type="button" variant="outline" onClick={() => void startCamera()}>
                   <Camera className="mr-2 h-4 w-4" />
