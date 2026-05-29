@@ -149,7 +149,6 @@ export default async function SchedulePage({ searchParams }: PageProps) {
 
   if (role === "HRD" || role === "SUPER_ADMIN") {
     const overview = await getHrdScheduleOverview();
-
     return <HrdScheduleOverviewClient overview={overview} />;
   }
 

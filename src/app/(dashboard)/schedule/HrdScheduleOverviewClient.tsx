@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -29,11 +30,16 @@ export default function HrdScheduleOverviewClient({ overview }: { overview: HrdS
 
   return (
     <div className="space-y-4 max-w-7xl">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">Rekap Jadwal Harian Tim</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Periode kerja {overview.periodStart} s.d. {overview.periodEnd}. Klik tanggal untuk melihat detail karyawan per shift.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">Rekap Jadwal Harian Tim</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Periode kerja {overview.periodStart} s.d. {overview.periodEnd}. Klik tanggal untuk melihat detail karyawan per shift.
+          </p>
+        </div>
+        <Link href="/schedule/attendance-recap" className="inline-flex h-10 items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
+          Override Kehadiran Periode
+        </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">

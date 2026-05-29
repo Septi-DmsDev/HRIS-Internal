@@ -4,13 +4,15 @@ import { format } from "date-fns";
 import { getUser, checkRole, getCurrentUserRoleRow } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { employees } from "@/lib/db/schema/employee";
-import { attendanceFallbackRequests, employeeAttendanceRecords } from "@/lib/db/schema/hr";
+import { attendanceFallbackRequests, attendanceTickets, employeeAttendanceRecords, overtimeRequests } from "@/lib/db/schema/hr";
 import { branches, divisions } from "@/lib/db/schema/master";
 import { attendanceFallbackDecisionSchema, attendanceFallbackRequestSchema, attendanceRecordSchema } from "@/lib/validations/attendance";
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { UserRole } from "@/types";
 import { z } from "zod";
+import { resolveAttendancePayrollEligibility } from "@/server/attendance-engine/resolve-attendance-payroll-eligibility";
+import { resolvePayrollPeriod } from "@/server/payroll-engine/resolve-payroll-period";
 
 const ATTENDANCE_MANAGE_ROLES: UserRole[] = ["SUPER_ADMIN", "HRD"];
 const ATTENDANCE_SELF_SERVICE_ROLES: UserRole[] = ["TEAMWORK", "MANAGERIAL", "SPV", "KABAG", "FINANCE", "PAYROLL_VIEWER"];
@@ -124,6 +126,15 @@ function resolvePayrollPeriodWindow(now: Date): { periodStart: Date; periodEnd: 
   return {
     periodStart: new Date(today.getFullYear(), today.getMonth() - 1, 26),
     periodEnd: new Date(today.getFullYear(), today.getMonth(), 25),
+  };
+}
+
+function resolvePeriodWindowByCode(periodCode?: string) {
+  if (!periodCode) return resolvePayrollPeriodWindow(new Date());
+  const resolved = resolvePayrollPeriod(periodCode);
+  return {
+    periodStart: resolved.periodStartDate,
+    periodEnd: resolved.periodEndDate,
   };
 }
 
@@ -251,8 +262,148 @@ export async function getAttendancePeriodOverrideWorkspace() {
   };
 }
 
+export async function getAttendancePeriodRecapWorkspace(periodCode?: string) {
+  const authError = await checkRole(ATTENDANCE_MANAGE_ROLES);
+  if (authError) return authError;
+
+  const { periodStart, periodEnd } = resolvePeriodWindowByCode(periodCode);
+  const start = toDateOnly(periodStart);
+  const end = toDateOnly(periodEnd);
+
+  let workingDaysInPeriod = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    if (cursor.getDay() !== 0) workingDaysInPeriod += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const employeeRows = await db
+    .select({
+      id: employees.id,
+      employeeCode: employees.employeeCode,
+      fullName: employees.fullName,
+      divisionName: divisions.name,
+    })
+    .from(employees)
+    .leftJoin(divisions, eq(employees.divisionId, divisions.id))
+    .where(eq(employees.isActive, true))
+    .orderBy(asc(employees.fullName));
+
+  const employeeIds = employeeRows.map((row) => row.id);
+  if (employeeIds.length === 0) {
+    return {
+      periodStart: toDateKey(start),
+      periodEnd: toDateKey(end),
+      workingDaysInPeriod,
+      rows: [],
+    };
+  }
+
+  const attendanceRows = await db
+    .select({
+      employeeId: employeeAttendanceRecords.employeeId,
+      attendanceStatus: employeeAttendanceRecords.attendanceStatus,
+      punctualityStatus: employeeAttendanceRecords.punctualityStatus,
+      attendanceDate: employeeAttendanceRecords.attendanceDate,
+    })
+    .from(employeeAttendanceRecords)
+    .where(
+      and(
+        inArray(employeeAttendanceRecords.employeeId, employeeIds),
+        gte(employeeAttendanceRecords.attendanceDate, start),
+        lte(employeeAttendanceRecords.attendanceDate, end)
+      )
+    );
+
+  const izinJamRows = await db
+    .select({
+      employeeId: attendanceTickets.employeeId,
+      totalHours: sql<number>`coalesce(sum(${attendanceTickets.izinHours}), 0)`,
+    })
+    .from(attendanceTickets)
+    .where(
+      and(
+        inArray(attendanceTickets.employeeId, employeeIds),
+        eq(attendanceTickets.ticketType, "IZIN_JAM"),
+        inArray(attendanceTickets.status, ["APPROVED_SPV", "APPROVED_HRD", "AUTO_APPROVED", "LOCKED"] as const),
+        lte(attendanceTickets.startDate, end),
+        gte(attendanceTickets.endDate, start)
+      )
+    )
+    .groupBy(attendanceTickets.employeeId);
+
+  const overtimeRows = await db
+    .select({
+      employeeId: overtimeRequests.employeeId,
+      overtimeHours: sql<number>`coalesce(sum(case when ${overtimeRequests.status} = 'APPROVED' and ${overtimeRequests.overtimeType} in ('OVERTIME_1H','OVERTIME_2H','OVERTIME_3H','PATCH_ABSENCE_3H') then ${overtimeRequests.overtimeHours} else 0 end), 0)`,
+      lemburDays: sql<number>`coalesce(sum(case when ${overtimeRequests.status} = 'APPROVED' and ${overtimeRequests.overtimeType} = 'LEMBUR_FULLDAY' then 1 else 0 end), 0)`,
+    })
+    .from(overtimeRequests)
+    .where(
+      and(
+        inArray(overtimeRequests.employeeId, employeeIds),
+        gte(overtimeRequests.requestDate, start),
+        lte(overtimeRequests.requestDate, end)
+      )
+    )
+    .groupBy(overtimeRequests.employeeId);
+
+  const attendanceMap = new Map<string, Array<{ attendanceStatus: "HADIR" | "ALPA" | "IZIN" | "SAKIT" | "CUTI" | "OFF"; punctualityStatus: "TEPAT_WAKTU" | "TELAT" | null; attendanceDate: Date }>>();
+  for (const row of attendanceRows) {
+    const current = attendanceMap.get(row.employeeId) ?? [];
+    current.push({
+      attendanceStatus: row.attendanceStatus,
+      punctualityStatus: row.punctualityStatus,
+      attendanceDate: row.attendanceDate,
+    });
+    attendanceMap.set(row.employeeId, current);
+  }
+
+  const izinJamMap = new Map(izinJamRows.map((row) => [row.employeeId, Number(row.totalHours ?? 0)]));
+  const overtimeMap = new Map(overtimeRows.map((row) => [row.employeeId, { overtimeHours: Number(row.overtimeHours ?? 0), lemburDays: Number(row.lemburDays ?? 0) }]));
+
+  const rows = employeeRows.map((employee) => {
+    const records = attendanceMap.get(employee.id) ?? [];
+    const hadir = records.filter((item) => item.attendanceStatus === "HADIR").length;
+    const telat = records.filter((item) => item.attendanceStatus === "HADIR" && item.punctualityStatus === "TELAT").length;
+    const izinSakit = records.filter((item) => item.attendanceStatus === "IZIN" || item.attendanceStatus === "SAKIT").length;
+    const cuti = records.filter((item) => item.attendanceStatus === "CUTI").length;
+    const alpha = records.filter((item) => item.attendanceStatus === "ALPA").length;
+    const eligibility = resolveAttendancePayrollEligibility({
+      scheduledWorkDays: workingDaysInPeriod,
+      records,
+    });
+    const totalKehadiran = hadir + alpha + cuti + izinSakit;
+    const overtime = overtimeMap.get(employee.id) ?? { overtimeHours: 0, lemburDays: 0 };
+
+    return {
+      employeeId: employee.id,
+      employeeName: employee.fullName,
+      employeeCode: employee.employeeCode,
+      divisionName: employee.divisionName ?? "-",
+      hadir,
+      telat,
+      izinJamHours: izinJamMap.get(employee.id) ?? 0,
+      izinSakit,
+      cuti,
+      alpha,
+      overtimeHours: overtime.overtimeHours,
+      lemburDays: overtime.lemburDays,
+      fulltimeEligible: totalKehadiran >= workingDaysInPeriod && eligibility.hasAttendanceData,
+    };
+  });
+
+  return {
+    periodStart: toDateKey(start),
+    periodEnd: toDateKey(end),
+    workingDaysInPeriod,
+    rows,
+  };
+}
+
 const attendancePeriodOverrideSchema = z.object({
   employeeId: z.string().uuid("Karyawan tidak valid."),
+  periodCode: z.string().regex(/^\d{4}-\d{2}$/, "Periode tidak valid.").optional(),
   hadir: z.coerce.number().int().min(0),
   telat: z.coerce.number().int().min(0),
   alpha: z.coerce.number().int().min(0),
@@ -270,7 +421,7 @@ export async function overrideAttendancePeriodTotals(input: unknown) {
     return { error: parsed.error.issues[0]?.message ?? "Input override periode tidak valid." };
   }
 
-  const { periodStart, periodEnd } = resolvePayrollPeriodWindow(new Date());
+  const { periodStart, periodEnd } = resolvePeriodWindowByCode(parsed.data.periodCode);
   const start = toDateOnly(periodStart);
   const end = toDateOnly(periodEnd);
   const user = await getUser();
@@ -298,9 +449,9 @@ export async function overrideAttendancePeriodTotals(input: unknown) {
   const { hadir, telat, alpha, cuti, izinSakit } = parsed.data;
   const usedDays = hadir + alpha + cuti + izinSakit;
   if (telat > hadir) return { error: "Jumlah telat tidak boleh lebih besar dari hadir." };
-  if (usedDays !== workingDaysInPeriod) {
+  if (usedDays > workingDaysInPeriod) {
     return {
-      error: `Total input kehadiran harus sama dengan hari kerja periode (${workingDaysInPeriod} hari, Minggu diabaikan).`,
+      error: `Total input kehadiran tidak boleh melebihi hari kerja periode (${workingDaysInPeriod} hari, Minggu diabaikan).`,
     };
   }
 
@@ -323,7 +474,7 @@ export async function overrideAttendancePeriodTotals(input: unknown) {
 
     const workingMap = new Map<string, { attendanceStatus: "HADIR" | "ALPA" | "CUTI" | "IZIN" | "OFF"; punctualityStatus: "TEPAT_WAKTU" | "TELAT" | null }>();
     workingDates.forEach((date, index) => {
-      workingMap.set(toDateKey(date), statuses[index] ?? { attendanceStatus: "ALPA", punctualityStatus: null });
+      workingMap.set(toDateKey(date), statuses[index] ?? { attendanceStatus: "OFF", punctualityStatus: null });
     });
 
     await tx.insert(employeeAttendanceRecords).values(

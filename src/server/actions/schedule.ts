@@ -14,7 +14,7 @@ import { POINT_TARGET_HARIAN } from "@/config/constants";
 import { attendanceTickets } from "@/lib/db/schema/hr";
 import { branches, divisions, positions } from "@/lib/db/schema/master";
 import { dailyActivityEntries } from "@/lib/db/schema/point";
-import { aliasedTable, and, asc, desc, eq, inArray, isNull, lte, gte, or } from "drizzle-orm";
+import { aliasedTable, and, asc, desc, eq, inArray, isNull, lte, gte, ne, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { UserRole } from "@/types";
@@ -730,7 +730,7 @@ export async function getTeamSchedules(): Promise<TeamMember[]> {
   }
 
   const useDivisionScope = (role === "SPV" || role === "KABAG") && roleRow.divisionIds.length > 0;
-  const baseConditions = [eq(employees.isActive, true)];
+  const baseConditions = [eq(employees.isActive, true), ne(employees.employmentStatus, "RESIGN")];
 
   const employeeRows = await db
     .select({

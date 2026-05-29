@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -93,6 +93,84 @@ export type PerformanceManagerialEmployeeOption = {
   divisionId: string | null;
   divisionName: string;
 };
+
+function ActivityEmployeeDropdown({
+  options,
+  selectedId,
+  onSelect,
+}: {
+  options: PerformanceEmployeeOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const selected = options.find((employee) => employee.id === selectedId) ?? null;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((employee) =>
+      employee.fullName.toLowerCase().includes(q)
+      || employee.employeeCode.toLowerCase().includes(q)
+      || employee.divisionName.toLowerCase().includes(q)
+    );
+  }, [options, search]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-left text-sm"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selected
+          ? `${selected.fullName} (${selected.employeeCode}) · ${selected.divisionName}`
+          : "Pilih karyawan"}
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 top-11 z-50 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-2">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Cari nama, kode, atau divisi..."
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            <button
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50"
+              onClick={() => {
+                onSelect("");
+                setOpen(false);
+              }}
+            >
+              Pilih karyawan
+            </button>
+            {filtered.map((employee) => (
+              <button
+                key={employee.id}
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                onClick={() => {
+                  onSelect(employee.id);
+                  setOpen(false);
+                  setSearch("");
+                }}
+              >
+                {employee.fullName} ({employee.employeeCode}) · {employee.divisionName}
+              </button>
+            ))}
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-slate-400">Karyawan tidak ditemukan.</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type PerformanceActivityRow = {
   id: string;
@@ -411,7 +489,7 @@ function EmployeeSearchPicker({
           <div>
             <span className="font-semibold text-teal-800">{selected.fullName}</span>
             <span className="ml-2 text-xs text-teal-600">
-              {selected.employeeCode} Â· {selected.divisionName} Â· {selected.employeeGroup}
+              {selected.employeeCode} Ã‚Â· {selected.divisionName} Ã‚Â· {selected.employeeGroup}
             </span>
           </div>
           <button
@@ -419,7 +497,7 @@ function EmployeeSearchPicker({
             onClick={() => { onSelect(""); setSearch(""); }}
             className="ml-3 text-teal-400 hover:text-teal-700 text-base leading-none"
           >
-            âœ•
+            Ã¢Å“â€¢
           </button>
         </div>
       </div>
@@ -450,9 +528,9 @@ function EmployeeSearchPicker({
                 className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 text-left"
               >
                 <span className="font-medium text-slate-900 shrink-0">{emp.fullName}</span>
-                <span className="text-slate-400">Â·</span>
+                <span className="text-slate-400">Ã‚Â·</span>
                 <span className="text-xs text-slate-500 shrink-0">{emp.employeeCode}</span>
-                <span className="text-slate-400">Â·</span>
+                <span className="text-slate-400">Ã‚Â·</span>
                 <span className="text-xs text-slate-500 truncate">{emp.divisionName}</span>
                 <span className="ml-auto text-xs text-slate-400 shrink-0">{emp.employeeGroup}</span>
               </button>
@@ -973,7 +1051,7 @@ export default function PerformanceCatalogClient({
           <div className="space-y-0.5">
             <p className="font-medium text-slate-900">{row.original.employeeName}</p>
             <p className="text-xs text-slate-500">
-              {row.original.employeeCode} · {row.original.employeeDivisionName}
+              {row.original.employeeCode} Â· {row.original.employeeDivisionName}
             </p>
           </div>
         ),
@@ -1067,7 +1145,7 @@ export default function PerformanceCatalogClient({
                         action: "submit",
                         activityId: entry.id,
                         title: "Ajukan Aktivitas",
-                        rowLabel: `${entry.employeeName} · ${entry.workDate}`,
+                        rowLabel: `${entry.employeeName} Â· ${entry.workDate}`,
                       })
                     }
                   >
@@ -1133,7 +1211,7 @@ export default function PerformanceCatalogClient({
           <div className="space-y-0.5">
             <p className="font-medium text-slate-900">{row.original.employeeName}</p>
             <p className="text-xs text-slate-500">
-              {row.original.employeeCode} Â· {row.original.divisionSnapshotName}
+              {row.original.employeeCode} Ã‚Â· {row.original.divisionSnapshotName}
             </p>
           </div>
         ),
@@ -1148,7 +1226,7 @@ export default function PerformanceCatalogClient({
         header: "Target",
         id: "target",
         cell: ({ row }) =>
-          `${row.original.targetDailyPoints.toLocaleString("id-ID")} Ã— ${row.original.targetDays} hr = ${row.original.totalTargetPoints.toLocaleString("id-ID")}`,
+          `${row.original.targetDailyPoints.toLocaleString("id-ID")} Ãƒâ€” ${row.original.targetDays} hr = ${row.original.totalTargetPoints.toLocaleString("id-ID")}`,
       },
       {
         header: "Approved",
@@ -1266,11 +1344,11 @@ export default function PerformanceCatalogClient({
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium text-slate-800">
-                    Draft Harian Diajukan â€” Menunggu Persetujuan HRD
+                    Draft Harian Diajukan Ã¢â‚¬â€ Menunggu Persetujuan HRD
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {overrideDraftGroups.length} draft
-                    {draftQueueDivision ? ` Â· Divisi: ${draftQueueDivision}` : ""}
+                    {draftQueueDivision ? ` Ã‚Â· Divisi: ${draftQueueDivision}` : ""}
                   </p>
                 </div>
               </div>
@@ -1342,7 +1420,7 @@ export default function PerformanceCatalogClient({
                           >
                             <td className="px-3 py-2.5">
                               <p className="font-medium text-slate-900">{group.employeeName}</p>
-                              <p className="text-xs text-slate-500">{group.employeeCode} Â· {group.employeeDivisionName}</p>
+                              <p className="text-xs text-slate-500">{group.employeeCode} Ã‚Â· {group.employeeDivisionName}</p>
                             </td>
                             <td className="px-3 py-2.5 text-slate-700">{group.workDate}</td>
                             <td className="px-3 py-2.5 text-center tabular-nums text-slate-700">{uniqueJobs}</td>
@@ -1474,18 +1552,11 @@ export default function PerformanceCatalogClient({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Karyawan</label>
-              <select
-                value={activityDraft.employeeId}
-                onChange={(event) => updateActivityDraft("employeeId", event.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Pilih karyawan</option>
-                {employeeOptions.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.fullName} ({employee.employeeCode}) Â· {employee.divisionName}
-                  </option>
-                ))}
-              </select>
+              <ActivityEmployeeDropdown
+                options={employeeOptions}
+                selectedId={activityDraft.employeeId}
+                onSelect={(id) => updateActivityDraft("employeeId", id)}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Tanggal Kerja</label>
@@ -1581,7 +1652,7 @@ export default function PerformanceCatalogClient({
           {draftDetailGroup ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <p className="flex-shrink-0 text-xs text-slate-500">
-                {draftDetailGroup.employeeCode} Â· {draftDetailGroup.employeeDivisionName} Â· Tgl Kerja: {draftDetailGroup.workDate} Â· Diajukan: {draftDetailGroup.submittedAt}
+                {draftDetailGroup.employeeCode} Ã‚Â· {draftDetailGroup.employeeDivisionName} Ã‚Â· Tgl Kerja: {draftDetailGroup.workDate} Ã‚Â· Diajukan: {draftDetailGroup.submittedAt}
               </p>
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200">
                 <table className="w-full text-sm">
@@ -1628,7 +1699,7 @@ export default function PerformanceCatalogClient({
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
-              {draftDecision?.group.employeeName} Â· {draftDecision?.group.workDate} Â· {draftDecision?.group.activities.length} aktivitas
+              {draftDecision?.group.employeeName} Ã‚Â· {draftDecision?.group.workDate} Ã‚Â· {draftDecision?.group.activities.length} aktivitas
             </p>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">
@@ -1728,7 +1799,7 @@ export default function PerformanceCatalogClient({
                 <Input
                   value={entryDraft.unitDescription}
                   onChange={(e) => setEntryDraft((d) => ({ ...d, unitDescription: e.target.value }))}
-                  placeholder="pcs, hari, â€¦"
+                  placeholder="pcs, hari, Ã¢â‚¬Â¦"
                 />
               </div>
             </div>
@@ -1769,7 +1840,7 @@ export default function PerformanceCatalogClient({
               <p className="font-semibold">Format header yang diperlukan:</p>
               <p className="font-mono">DIVISI | JENIS PEKERJAAN | POIN | KETERANGAN</p>
               <p className="text-slate-500">Kolom KETERANGAN bersifat opsional. Baris dengan data tidak valid akan dilewati.</p>
-              <p className="text-amber-700 font-medium">âš  Import akan menggantikan semua entry untuk divisi yang ada dalam file.</p>
+              <p className="text-amber-700 font-medium">Ã¢Å¡Â  Import akan menggantikan semua entry untuk divisi yang ada dalam file.</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Pilih File .xlsx</label>
