@@ -29,29 +29,9 @@ export default async function RecaptDivisionPage({ params, searchParams }: PageP
   }
 
   const currentPeriodCode = detail.periodCode ?? query.period ?? "2026-01";
-  const weekGroups = (() => {
-    const groups: Array<{ label: string; days: string[] }> = [];
-    let currentWeek = 1;
-    for (const day of detail.dayColumns) {
-      if (groups.length === 0) {
-        groups.push({ label: `PEKAN ${currentWeek}`, days: [day] });
-        continue;
-      }
-      const d = new Date(`${day}T00:00:00`);
-      const isMonday = d.getDay() === 1;
-      if (isMonday) {
-        currentWeek += 1;
-        groups.push({ label: `PEKAN ${currentWeek}`, days: [day] });
-      } else {
-        groups[groups.length - 1].days.push(day);
-      }
-    }
-    return groups;
-  })();
+  const weekGroups = detail.weekGroups;
   const dayLabel = (day: string) => {
-    const d = new Date(`${day}T00:00:00`);
-    const m = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-    return `${d.getDate()}-${m[d.getMonth()]}`;
+    return String(Number(day.slice(8, 10)));
   };
 
   return (
@@ -93,63 +73,70 @@ export default async function RecaptDivisionPage({ params, searchParams }: PageP
       </div>
 
       <div className="overflow-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-[2400px] text-xs">
+        <table className="min-w-[2800px] text-xs">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-2 py-2 text-left">ID</th>
-              <th className="px-2 py-2 text-left">Nama Karyawan</th>
+              <th className="sticky left-0 top-0 z-40 w-[96px] bg-slate-50 px-2 py-2 text-left">ID</th>
+              <th className="sticky left-[96px] top-0 z-40 w-[240px] bg-slate-50 px-2 py-2 text-left">Nama Karyawan</th>
               {weekGroups.map((group) => (
-                <th key={group.label} colSpan={group.days.length} className="px-2 py-2 text-center">
+                <th key={group.label} colSpan={group.days.length} className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-center">
                   {group.label}
                 </th>
               ))}
-              <th className="px-2 py-2 text-left">Rekap Presentase Mingguan</th>
-              <th className="px-2 py-2 text-right">Total Poin Bulanan</th>
-              <th className="px-2 py-2 text-right">Presentase Bulanan</th>
-              <th className="px-2 py-2 text-right">Total Hadir</th>
-              <th className="px-2 py-2 text-right">Telat</th>
-              <th className="px-2 py-2 text-right">Izin Jam</th>
-              <th className="px-2 py-2 text-right">Izin/Sakit</th>
-              <th className="px-2 py-2 text-right">Cuti</th>
-              <th className="px-2 py-2 text-right">Alpha</th>
-              <th className="px-2 py-2 text-right">Overtime</th>
-              <th className="px-2 py-2 text-right">Lembur</th>
-              <th className="px-2 py-2 text-left">Indikator Fulltime Eligibility</th>
+              <th colSpan={detail.weekGroups.length} className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-center">REKAP PRESENTASE MINGGUAN</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Total Poin Bulanan</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Presentase Bulanan</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Total Hadir</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Telat</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Izin Jam</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Izin/Sakit</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Cuti</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Alpha</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Overtime</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-right">Lembur</th>
+              <th className="sticky top-0 z-30 bg-slate-50 px-2 py-2 text-left">Indikator Fulltime Eligibility</th>
             </tr>
             <tr>
-              <th className="px-2 py-2 text-left"> </th>
-              <th className="px-2 py-2 text-left"> </th>
+              <th className="sticky left-0 top-9 z-40 w-[96px] bg-slate-50 px-2 py-2 text-left"> </th>
+              <th className="sticky left-[96px] top-9 z-40 w-[240px] bg-slate-50 px-2 py-2 text-left"> </th>
               {detail.dayColumns.map((day) => (
-                <th key={day} className="px-2 py-2 text-center">{dayLabel(day)}</th>
+                <th key={day} className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-center">{dayLabel(day)}</th>
               ))}
-              <th className="px-2 py-2 text-left"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-right"> </th>
-              <th className="px-2 py-2 text-left"> </th>
+              {detail.weekGroups.map((group) => (
+                <th key={`weekly-${group.key}`} className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-center">{group.label}</th>
+              ))}
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-right"> </th>
+              <th className="sticky top-9 z-30 bg-slate-50 px-2 py-2 text-left"> </th>
             </tr>
           </thead>
           <tbody>
             {detail.rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 align-top">
-                <td className="px-2 py-2 font-mono text-slate-600">{row.employeeCode}</td>
-                <td className="px-2 py-2 font-medium text-slate-900">{row.employeeName}</td>
+                <td className="sticky left-0 z-20 w-[96px] bg-white px-2 py-2 font-mono text-slate-600">{row.employeeCode}</td>
+                <td className="sticky left-[96px] z-20 w-[240px] bg-white px-2 py-2 font-medium text-slate-900">{row.employeeName}</td>
                 {detail.dayColumns.map((day) => (
-                  <td key={`${row.id}-${day}`} className="px-2 py-2 text-center tabular-nums">
+                  <td
+                    key={`${row.id}-${day}`}
+                    className={`px-2 py-2 text-center tabular-nums ${row.offDays?.[day] ? "font-medium text-red-700" : ""}`}
+                  >
                     {row.dailyPoints[day] ?? 0}
                   </td>
                 ))}
-                <td className="px-2 py-2 text-slate-700">
-                  W1 {row.weeklyPercent.week1}% · W2 {row.weeklyPercent.week2}% · W3 {row.weeklyPercent.week3}% · W4 {row.weeklyPercent.week4}%
-                </td>
+                {detail.weekGroups.map((group) => (
+                  <td key={`${row.id}-${group.key}`} className="px-2 py-2 text-center tabular-nums">
+                    {row.weeklyPercent[group.key] ?? 0}%
+                  </td>
+                ))}
                 <td className="px-2 py-2 text-right tabular-nums">{row.monthlyPointsTotal}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{row.monthlyPercent}%</td>
                 <td className="px-2 py-2 text-right tabular-nums">{row.hadir}</td>

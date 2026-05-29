@@ -33,6 +33,16 @@ function ymd(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function parseYmd(day: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  return { year, month, date };
+}
+
+function dayOfWeekJakarta(day: string) {
+  const { year, month, date } = parseYmd(day);
+  return new Date(year, month - 1, date).getDay();
+}
+
 function getPeriodDays(start: Date, end: Date) {
   const days: string[] = [];
   const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
@@ -43,9 +53,56 @@ function getPeriodDays(start: Date, end: Date) {
   return days;
 }
 
+function buildWeekGroupsSundayToSaturday(days: string[]) {
+  const groups: Array<{ key: string; label: string; days: string[] }> = [];
+  let weekNumber = 1;
+  for (const day of days) {
+    if (groups.length === 0) {
+      groups.push({ key: `week${weekNumber}`, label: `P.${weekNumber}`, days: [day] });
+      continue;
+    }
+    if (dayOfWeekJakarta(day) === 0) {
+      weekNumber += 1;
+      groups.push({ key: `week${weekNumber}`, label: `P.${weekNumber}`, days: [day] });
+    } else {
+      groups[groups.length - 1].days.push(day);
+    }
+  }
+  return groups;
+}
+
+function pickLatestAssignmentForDate<
+  T extends { effectiveStartDate: Date; effectiveEndDate: Date | null; createdAt?: Date | null }
+>(rows: T[], day: string) {
+  const target = day;
+  let selected: T | null = null;
+  for (const row of rows) {
+    const start = ymd(new Date(row.effectiveStartDate));
+    const end = row.effectiveEndDate ? ymd(new Date(row.effectiveEndDate)) : null;
+    if (target < start) continue;
+    if (end && target > end) continue;
+    if (!selected) {
+      selected = row;
+      continue;
+    }
+    const selectedStart = ymd(new Date(selected.effectiveStartDate));
+    if (start > selectedStart) {
+      selected = row;
+      continue;
+    }
+    if (
+      start === selectedStart
+      && (row.createdAt?.getTime() ?? 0) > (selected.createdAt?.getTime() ?? 0)
+    ) {
+      selected = row;
+    }
+  }
+  return selected;
+}
+
 export async function getPublicRecaptDivisions() {
   const rows = await db
-    .select({ id: divisions.id, name: divisions.name })
+    .select({ id: divisions.id, name: divisions.name, dailyPointTarget: divisions.dailyPointTarget })
     .from(divisions)
     .where(eq(divisions.isActive, true))
     .orderBy(asc(divisions.name));
@@ -54,6 +111,7 @@ export async function getPublicRecaptDivisions() {
     id: row.id,
     name: row.name,
     slug: normalizeDivisionSlug(row.name),
+    dailyPointTarget: row.dailyPointTarget,
   }));
 }
 
@@ -79,6 +137,7 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
 
   const employeeIds = employeeRows.map((row) => row.id);
   const periodDays = getPeriodDays(periodStart, periodEnd);
+  const weekGroups = buildWeekGroupsSundayToSaturday(periodDays);
 
   if (employeeIds.length === 0) {
     return {
@@ -86,6 +145,7 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
       periodStart: ymd(periodStart),
       periodEnd: ymd(periodEnd),
       dayColumns: periodDays,
+      weekGroups,
       rows: [],
     };
   }
@@ -173,7 +233,13 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
       )
       .groupBy(overtimeRequests.employeeId),
     db
-      .select({ employeeId: employeeScheduleAssignments.employeeId })
+      .select({
+        employeeId: employeeScheduleAssignments.employeeId,
+        scheduleId: employeeScheduleAssignments.scheduleId,
+        effectiveStartDate: employeeScheduleAssignments.effectiveStartDate,
+        effectiveEndDate: employeeScheduleAssignments.effectiveEndDate,
+        createdAt: employeeScheduleAssignments.createdAt,
+      })
       .from(employeeScheduleAssignments)
       .where(
         and(
@@ -221,8 +287,12 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
     { overtimeHours: Number(row.overtimeHours ?? 0), lemburDays: Number(row.lemburDays ?? 0) },
   ]));
 
-  const assignmentEmployeeSet = new Set(assignmentRows.map((row) => row.employeeId));
-  const workingDaysInPeriod = periodDays.filter((day) => new Date(`${day}T00:00:00`).getDay() !== 0).length;
+  const assignmentByEmployee = new Map<string, typeof assignmentRows>();
+  for (const row of assignmentRows) {
+    const current = assignmentByEmployee.get(row.employeeId) ?? [];
+    current.push(row);
+    assignmentByEmployee.set(row.employeeId, current);
+  }
 
   const rows = employeeRows.map((employee) => {
     const attendance = attendanceMap.get(employee.id) ?? { hadir: 0, telat: 0, izinSakit: 0, cuti: 0, alpha: 0 };
@@ -232,31 +302,58 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
       totalApprovedPoints: activityTotalMap.get(employee.id) ?? 0,
     };
 
-    const dailyPoints = Object.fromEntries(
-      periodDays.map((day) => [day, Number((activityMap.get(`${employee.id}::${day}`) ?? 0).toFixed(2))])
-    );
+    const employeeAssignments = assignmentByEmployee.get(employee.id) ?? [];
+    const targetDailyPoints = Number(division.dailyPointTarget ?? 13000);
+    const isWorkingByDay: Record<string, boolean> = {};
+    for (const day of periodDays) {
+      const assignment = pickLatestAssignmentForDate(employeeAssignments, day);
+      if (!assignment) {
+        isWorkingByDay[day] = false;
+        continue;
+      }
+      // Sinkron dengan /scheduler: selama ada assignment aktif pada tanggal tsb, dianggap hari kerja.
+      // Jangan pakai default isWorkingDay dari template mingguan shift karena bisa berbeda dari matrix scheduler.
+      isWorkingByDay[day] = true;
+    }
+    const targetDays = periodDays.filter((day) => isWorkingByDay[day]).length;
 
-    const weeklyPercent = (() => {
-      const total = monthly.performancePercent;
-      return {
-        week1: Number((total / 4).toFixed(2)),
-        week2: Number((total / 4).toFixed(2)),
-        week3: Number((total / 4).toFixed(2)),
-        week4: Number((total / 4).toFixed(2)),
-      };
-    })();
+    const weeklyPercent: Record<string, number> = {};
+    for (const group of weekGroups) {
+      const approvedPointsWeek = group.days.reduce(
+        (sum, day) => sum + Number(activityMap.get(`${employee.id}::${day}`) ?? 0),
+        0
+      );
+      const targetDaysWeek = group.days.filter((day) => isWorkingByDay[day]).length;
+      const totalTargetWeek = targetDailyPoints * targetDaysWeek;
+      weeklyPercent[group.key] = totalTargetWeek > 0
+        ? Number(((approvedPointsWeek / totalTargetWeek) * 100).toFixed(2))
+        : 0;
+    }
 
     const totalKehadiran = attendance.hadir + attendance.izinSakit + attendance.cuti + attendance.alpha;
-    const fulltimeEligible = totalKehadiran >= workingDaysInPeriod && assignmentEmployeeSet.has(employee.id);
+    const fulltimeEligible = totalKehadiran >= targetDays && targetDays > 0;
+    const totalTargetMonth = targetDailyPoints * targetDays;
+    const monthlyPercent = totalTargetMonth > 0
+      ? Number(((monthly.totalApprovedPoints ?? 0) / totalTargetMonth * 100).toFixed(2))
+      : 0;
 
     return {
       id: employee.id,
       employeeCode: employee.employeeCode,
       employeeName: employee.fullName,
-      dailyPoints,
+      dailyPoints: Object.fromEntries(
+        periodDays.map((day) => {
+          const acceptedPoint = Number((activityMap.get(`${employee.id}::${day}`) ?? 0).toFixed(2));
+          if (!isWorkingByDay[day]) {
+            return [day, acceptedPoint > 0 ? acceptedPoint : "OFF"] as const;
+          }
+          return [day, acceptedPoint] as const;
+        })
+      ),
+      offDays: Object.fromEntries(periodDays.map((day) => [day, !isWorkingByDay[day]])),
       weeklyPercent,
       monthlyPointsTotal: Number((monthly.totalApprovedPoints ?? 0).toFixed(2)),
-      monthlyPercent: Number((monthly.performancePercent ?? 0).toFixed(2)),
+      monthlyPercent,
       hadir: attendance.hadir,
       telat: attendance.telat,
       izinJamHours: izinJamMap.get(employee.id) ?? 0,
@@ -275,6 +372,7 @@ export async function getPublicRecaptDivisionDetail(divisionSlug: string, period
     periodStart: ymd(periodStart),
     periodEnd: ymd(periodEnd),
     dayColumns: periodDays,
+    weekGroups,
     rows,
   };
 }
