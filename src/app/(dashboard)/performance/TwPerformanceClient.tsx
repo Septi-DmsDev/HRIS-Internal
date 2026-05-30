@@ -46,7 +46,7 @@ type DateGroup = {
   totalJobs: number;
   totalPoints: number;
   statusLabel: string;
-  statusType: "pending" | "approved" | "rejected" | "locked";
+  statusType: "pending" | "approved" | "rejected" | "revision" | "locked";
   canEdit: boolean;
   canDelete: boolean;
   canAddTo: boolean;
@@ -70,6 +70,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   pending: "secondary",
   approved: "default",
   rejected: "destructive",
+  revision: "secondary",
   locked: "outline",
 };
 
@@ -82,6 +83,7 @@ function resolveGroupStatus(entries: TwActivityItem[]): DateGroup["statusType"] 
   if (statuses.some((s) => s === "DITOLAK_SPV")) return "rejected";
   if (statuses.some((s) => ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(s))) return "pending";
   if (statuses.every((s) => s === "DIKUNCI_PAYROLL")) return "locked";
+  if (statuses.some((s) => s === "REVISI_TW")) return "revision";
   return "approved";
 }
 
@@ -89,6 +91,7 @@ const STATUS_TEXT: Record<DateGroup["statusType"], string> = {
   pending: "Menunggu Review HRD",
   approved: "Disetujui HRD",
   rejected: "Ditolak HRD",
+  revision: "Perlu Direvisi",
   locked: "Terkunci",
 };
 
@@ -771,7 +774,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
 
   function handleEdit(group: DateGroup) {
     const items: DraftItem[] = group.entries
-      .filter((e) => e.status === "DITOLAK_SPV")
+      .filter((e) => e.status === "DITOLAK_SPV" || e.status === "REVISI_TW")
       .map((e) => {
         const cat = catalogEntries.find((c) => c.id === e.pointCatalogEntryId);
         return {
@@ -1054,7 +1057,7 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
           totalPoints,
           statusLabel: STATUS_TEXT[statusType],
           statusType,
-          canEdit: statusType === "rejected",
+          canEdit: statusType === "rejected" || statusType === "revision",
           canAddTo: statusType === "pending",
           canDelete: deletableEntryIds.length === entries.length && entries.length > 0,
           deletableEntryIds,
@@ -1100,8 +1103,10 @@ export default function TwPerformanceClient({ catalogEntries, activities, divisi
         <TabsContent value="submit" className="space-y-4 pt-2">
           {editingDate && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              Mengedit ulang draft yang ditolak HRD untuk tanggal{" "}
-              <strong>{formatDate(editingDate)}</strong>. Ubah isian lalu kirim ulang.
+              {dateGroups.find((g) => g.workDate === editingDate)?.statusType === "revision"
+                ? <>Draft tanggal <strong>{formatDate(editingDate)}</strong> dikembalikan oleh Admin untuk direvisi. Ubah isian lalu kirim ulang.</>
+                : <>Mengedit ulang draft yang ditolak HRD untuk tanggal <strong>{formatDate(editingDate)}</strong>. Ubah isian lalu kirim ulang.</>
+              }
             </div>
           )}
 

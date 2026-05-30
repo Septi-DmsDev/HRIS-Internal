@@ -40,6 +40,7 @@ import {
   generateMonthlyPerformance,
   inputEmployeeMonthlyPerformance,
   rejectDailyActivityEntry,
+  returnActivityToRevision,
   saveDailyActivityEntry,
   submitDailyActivityEntry,
 } from "@/server/actions/performance";
@@ -576,6 +577,8 @@ export default function PerformanceCatalogClient({
     group: ActivityDraftGroup;
   } | null>(null);
   const [draftDecisionNotes, setDraftDecisionNotes] = useState("");
+  const [returnRevisionGroup, setReturnRevisionGroup] = useState<ActivityDailyGroup | null>(null);
+  const [returnRevisionNotes, setReturnRevisionNotes] = useState("");
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -764,6 +767,30 @@ export default function PerformanceCatalogClient({
         draftDecision.action === "approve"
           ? `Draft harian ${draftDecision.group.employeeName} tanggal ${draftDecision.group.workDate} berhasil disetujui.`
           : `Draft harian ${draftDecision.group.employeeName} tanggal ${draftDecision.group.workDate} berhasil ditolak.`
+      );
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleReturnToRevision() {
+    if (!returnRevisionGroup) return;
+    setPending(true);
+    resetMessages();
+    try {
+      const result = await returnActivityToRevision({
+        ids: returnRevisionGroup.ids,
+        notes: returnRevisionNotes.trim() || undefined,
+      });
+      if (result && "error" in result) {
+        setFormError(result.error);
+        return;
+      }
+      setReturnRevisionGroup(null);
+      setReturnRevisionNotes("");
+      setLastResult(
+        `Draft harian ${returnRevisionGroup.employeeName} tanggal ${returnRevisionGroup.workDate} berhasil dikembalikan ke karyawan untuk direvisi.`
       );
       router.refresh();
     } finally {
@@ -1099,6 +1126,7 @@ export default function PerformanceCatalogClient({
           const isDeletable = isSingleEntry && ["DRAFT", "DIAJUKAN", "DIAJUKAN_ULANG"].includes(group.status);
           const canApprove = role === "HRD" || role === "SUPER_ADMIN";
           const isApprovable = canApprove && isSubmittedDraftStatus(group.status);
+          const canReturnToRevision = role === "SUPER_ADMIN" && group.status === "OVERRIDE_HRD";
 
           return (
             <div className="flex flex-wrap gap-1.5">
@@ -1193,6 +1221,21 @@ export default function PerformanceCatalogClient({
                     <FontAwesomeIcon icon={faXmark} className="h-4 w-4" />
                   </Button>
                 </>
+              ) : null}
+              {canReturnToRevision ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Kembalikan ke karyawan untuk direvisi"
+                  aria-label="Kembalikan ke Revisi"
+                  onClick={() => {
+                    setReturnRevisionNotes("");
+                    setReturnRevisionGroup(group);
+                  }}
+                >
+                  <FontAwesomeIcon icon={faRotateLeft} className="h-4 w-4" />
+                </Button>
               ) : null}
             </div>
           );
@@ -1724,6 +1767,47 @@ export default function PerformanceCatalogClient({
               disabled={pending || (draftDecision?.action === "reject" && !draftDecisionNotes.trim())}
             >
               {pending ? "Memproses..." : draftDecision?.action === "approve" ? "Setujui Semua" : "Tolak Semua"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return to Revision Dialog — SUPER_ADMIN only */}
+      <Dialog open={returnRevisionGroup !== null} onOpenChange={(open) => !open && setReturnRevisionGroup(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Kembalikan Draft ke Karyawan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-medium">{returnRevisionGroup?.employeeName} &middot; {returnRevisionGroup?.workDate}</p>
+              <p className="text-xs mt-0.5">{returnRevisionGroup?.activities.length} aktivitas &middot; {returnRevisionGroup?.employeeDivisionName}</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              Status akan dikembalikan ke <strong>Revisi TW</strong> sehingga karyawan dapat mengubah tanggal/poin dan mengajukan ulang.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Alasan / Catatan (opsional)</label>
+              <textarea
+                value={returnRevisionNotes}
+                onChange={(event) => setReturnRevisionNotes(event.target.value)}
+                rows={3}
+                placeholder="Contoh: Poin terlalu tinggi, mohon dicek ulang..."
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReturnRevisionGroup(null)} disabled={pending}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleReturnToRevision()}
+              disabled={pending}
+            >
+              {pending ? "Memproses..." : "Kembalikan ke Karyawan"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -38,6 +38,7 @@ export const pointApprovalActionEnum = pgEnum("point_approval_action", [
   "RESUBMIT",
   "OVERRIDE_HRD",
   "LOCK_PAYROLL",
+  "RETURN_TO_REVISION",
 ]);
 
 export const monthlyPointPerformanceStatusEnum = pgEnum("monthly_point_performance_status", [

@@ -1369,13 +1369,13 @@ export async function batchSubmitDraft(input: unknown) {
   const hasPending = existing.some((e) => ["DIAJUKAN", "DIAJUKAN_ULANG"].includes(e.status));
   if (hasPending) return { error: "Ada draft yang sedang menunggu review HRD untuk tanggal ini." };
 
-  const hasRejected = existing.some((e) => e.status === "DITOLAK_SPV");
-  const nextStatus = hasRejected ? "DIAJUKAN_ULANG" : "DIAJUKAN";
-  const logAction = hasRejected ? "RESUBMIT" : "SUBMIT";
+  const hasRejectedOrRevision = existing.some((e) => e.status === "DITOLAK_SPV" || e.status === "REVISI_TW");
+  const nextStatus = hasRejectedOrRevision ? "DIAJUKAN_ULANG" : "DIAJUKAN";
+  const logAction = hasRejectedOrRevision ? "RESUBMIT" : "SUBMIT";
 
   await db.transaction(async (tx) => {
     const deletableIds = existing
-      .filter((e) => ["DRAFT", "DITOLAK_SPV"].includes(e.status))
+      .filter((e) => ["DRAFT", "DITOLAK_SPV", "REVISI_TW"].includes(e.status))
       .map((e) => e.id);
     if (deletableIds.length > 0) {
       await tx.delete(dailyActivityEntries).where(inArray(dailyActivityEntries.id, deletableIds));
@@ -1929,6 +1929,60 @@ export async function updatePendingActivityEntry(input: unknown) {
 
   revalidatePath("/performance");
   return { success: true };
+}
+
+export async function returnActivityToRevision(input: { ids: string[]; notes?: string }) {
+  const authError = await checkRole(["SUPER_ADMIN"]);
+  if (authError) return authError;
+
+  if (!Array.isArray(input.ids) || input.ids.length === 0) {
+    return { error: "Tidak ada aktivitas yang dipilih." };
+  }
+
+  const user = await getUser();
+  const roleRow = await getCurrentUserRoleRow();
+  const role = roleRow.role as UserRole;
+
+  const entries = await db
+    .select({
+      id: dailyActivityEntries.id,
+      employeeId: dailyActivityEntries.employeeId,
+      status: dailyActivityEntries.status,
+    })
+    .from(dailyActivityEntries)
+    .where(inArray(dailyActivityEntries.id, input.ids));
+
+  if (entries.length === 0) return { error: "Aktivitas tidak ditemukan." };
+
+  const notReturnable = entries.filter((e) => e.status !== "OVERRIDE_HRD");
+  if (notReturnable.length > 0) {
+    return { error: "Hanya aktivitas berstatus 'Disetujui HRD' yang dapat dikembalikan ke revisi." };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(dailyActivityEntries)
+      .set({
+        status: "REVISI_TW",
+        approvedAt: null,
+        updatedByUserId: user?.id ?? null,
+        updatedAt: new Date(),
+      })
+      .where(inArray(dailyActivityEntries.id, input.ids));
+
+    await tx.insert(dailyActivityApprovalLogs).values(
+      entries.map((entry) => ({
+        activityEntryId: entry.id,
+        action: "RETURN_TO_REVISION" as const,
+        actorUserId: user?.id ?? entry.employeeId,
+        actorRole: role,
+        notes: input.notes,
+      }))
+    );
+  });
+
+  revalidatePath("/performance");
+  return { success: true, count: entries.length };
 }
 
 export async function deleteActivityEntry(activityEntryId: string) {
